@@ -1,5 +1,6 @@
 //
 // Copyright 2006 The Android Open Source Project
+// This code has been modified.  Portions copyright (C) 2010, T-Mobile USA, Inc.
 //
 // Build resource files from raw assets.
 //
@@ -1779,6 +1780,12 @@ ResourceTable::ResourceTable(Bundle* bundle, const String16& assetsPackage, Reso
             assert(0);
             break;
     }
+
+    int extendedPackageId = mBundle->getExtendedPackageId();
+    if (extendedPackageId != 0) {
+        packageId = extendedPackageId;
+    }
+
     sp<Package> package = new Package(mAssetsPackage, packageId);
     mPackages.add(assetsPackage, package);
     mOrderedPackages.add(package);
@@ -2825,7 +2832,7 @@ status_t ResourceTable::flatten(Bundle* bundle, const sp<const ResourceFilter>& 
     for (size_t i = 0; i < basePackageCount; i++) {
         size_t packageId = table.getBasePackageId(i);
         String16 packageName(table.getBasePackageName(i));
-        if (packageId > 0x01 && packageId != 0x7f &&
+        if (packageId >= Res_FIRSTLIBPACKAGEID && packageId != 0x7f &&
                 packageName != String16("android")) {
             libraryPackages.add(sp<Package>(new Package(packageName, packageId)));
         }

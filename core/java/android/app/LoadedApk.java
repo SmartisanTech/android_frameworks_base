@@ -601,11 +601,9 @@ public final class LoadedApk {
         final int N = packageIdentifiers.size();
         for (int i = 0; i < N; i++) {
             final int id = packageIdentifiers.keyAt(i);
-            if (id == 0x01 || id == 0x7f) {
-                continue;
+            if (id >= 0x0b && id < 0x7f) {
+                rewriteRValues(getClassLoader(), packageIdentifiers.valueAt(i), id);
             }
-
-            rewriteRValues(getClassLoader(), packageIdentifiers.valueAt(i), id);
         }
 
         return app;

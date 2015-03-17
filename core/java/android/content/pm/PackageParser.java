@@ -1246,7 +1246,7 @@ public class PackageParser {
         }
 
         final String packageName = attrs.getAttributeValue(null, "package");
-        if (!"android".equals(packageName)) {
+        if (!"android".equals(packageName) && !"smartisanos".equals(packageName)) {
             final String error = validateName(packageName, true, true);
             if (error != null) {
                 throw new PackageParserException(INSTALL_PARSE_FAILED_BAD_PACKAGE_NAME,
