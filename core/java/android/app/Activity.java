@@ -30,6 +30,7 @@ import android.transition.Scene;
 import android.transition.TransitionManager;
 import android.util.ArrayMap;
 import android.util.SuperNotCalledException;
+import android.widget.EditText;
 import android.widget.Toolbar;
 
 import com.android.internal.app.IVoiceInteractor;
@@ -924,6 +925,58 @@ public class Activity extends ContextThemeWrapper
             mVoiceInteractor.attachActivity(this);
         }
         mCalled = true;
+
+        // wechat related feature
+        ComponentName wechat = new ComponentName("com.tencent.mm","com.tencent.mm.ui.LauncherUI");
+        mIsTargetActivity = wechat.equals(getComponentName());
+    }
+
+    private static final String EXTRA_TEXT_SIDEBAR = "wechat_text";
+    private boolean mIsTargetActivity = false;
+    private boolean mTextSetted = false;
+
+    private void trySetTextFromSidebar(Intent intent) {
+        if (!mIsTargetActivity) {
+            return;
+        }
+        try {
+            String text = intent.getStringExtra(EXTRA_TEXT_SIDEBAR);
+            if (text != null) {
+                Log.i("Sidebar", "go to set text from sidebar! text -> " + text);
+                boolean thisTime = setTextFromSidebar(this.getWindow().getDecorView(), text);
+                mTextSetted = mTextSetted | thisTime;
+            }
+        } catch (Exception e) {
+            Log.e("Sidebar", "fail to set text from sidebar !", e);
+        }
+    }
+
+    private boolean setTextFromSidebar(View view, final String text) {
+        if (view instanceof ViewGroup) {
+            ViewGroup vg = (ViewGroup) view;
+            for (int i = 0; i < vg.getChildCount(); i++) {
+                if (setTextFromSidebar(vg.getChildAt(i), text)) {
+                    return true;
+                }
+            }
+        } else {
+            if (view instanceof EditText) {
+                final EditText et = (EditText) view;
+                // we must use postDelay() here, because the wechat will invoke
+                // setText to display draft which will cover our message if we doesn't delay.
+                et.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        Log.i("Sidebar", "find the EditText, setText succeed ! -> " + text);
+                        et.setText(et.getText().toString() + text);
+                        et.requestFocus();
+                        et.setSelection(et.getText().length());
+                    }
+                }, 618);// golden cut ! actually it is meaningless - -
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -1288,6 +1341,7 @@ public class Activity extends ContextThemeWrapper
      * @see #onResume
      */
     protected void onNewIntent(Intent intent) {
+        trySetTextFromSidebar(intent);
     }
 
     /**
@@ -2628,6 +2682,14 @@ public class Activity extends ContextThemeWrapper
     }
 
     public void onContentChanged() {
+        if (!mTextSetted) {
+            new Handler(Looper.getMainLooper()).post(new Runnable() {
+                @Override
+                public void run() {
+                    trySetTextFromSidebar(getIntent());
+                }
+            });
+        }
     }
 
     /**
