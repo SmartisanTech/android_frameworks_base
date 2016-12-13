@@ -110,4 +110,7 @@ public class BaseIWindow extends IWindow.Stub {
     @Override
     public void dispatchWindowShown() {
     }
+
+    @Override
+    public void dispatchThumbModeStates(int states) {}
 }

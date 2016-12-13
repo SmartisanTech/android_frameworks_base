@@ -80,6 +80,7 @@ import com.android.server.power.PowerManagerService;
 import com.android.server.power.ShutdownThread;
 import com.android.server.restrictions.RestrictionsManagerService;
 import com.android.server.search.SearchManagerService;
+import com.android.server.onestep.OneStepManagerService;
 import com.android.server.statusbar.StatusBarManagerService;
 import com.android.server.storage.DeviceStorageMonitorService;
 import com.android.server.telecom.TelecomLoaderService;
@@ -543,6 +544,8 @@ public final class SystemServer {
         AssetAtlasService atlas = null;
         MediaRouterService mediaRouter = null;
 
+        OneStepManagerService oneStep = null;
+
         // Bring up services needed for UI.
         if (mFactoryTestMode != FactoryTest.FACTORY_TEST_LOW_LEVEL) {
             try {
@@ -632,6 +635,13 @@ public final class SystemServer {
                 } catch (Throwable e) {
                     reportWtf("starting StatusBarManagerService", e);
                 }
+            }
+
+            try {
+                oneStep = new OneStepManagerService(context, wm);
+                ServiceManager.addService(Context.ONE_STEP_SERVICE, oneStep);
+            } catch (Throwable e) {
+                reportWtf("starting OneStepManagerService", e);
             }
 
             if (!disableNonCoreServices) {
@@ -1115,6 +1125,11 @@ public final class SystemServer {
                     reportWtf("starting System UI", e);
                 }
                 try {
+                    startOneStepUi(context);
+                } catch (Throwable e) {
+                    reportWtf("starting  Sidebar UI", e);
+                }
+                try {
                     if (networkScoreF != null) networkScoreF.systemReady();
                 } catch (Throwable e) {
                     reportWtf("making Network Score Service ready", e);
@@ -1225,6 +1240,13 @@ public final class SystemServer {
         intent.setComponent(new ComponentName("com.android.systemui",
                     "com.android.systemui.SystemUIService"));
         //Slog.d(TAG, "Starting service: " + intent);
+        context.startServiceAsUser(intent, UserHandle.OWNER);
+    }
+
+    static final void startOneStepUi(Context context) {
+        Intent intent = new Intent();
+        intent.setComponent(new ComponentName("com.smartisanos.sidebar",
+                "com.smartisanos.sidebar.SidebarService"));
         context.startServiceAsUser(intent, UserHandle.OWNER);
     }
 }

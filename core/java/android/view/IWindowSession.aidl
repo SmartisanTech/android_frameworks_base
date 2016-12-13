@@ -145,7 +145,8 @@ interface IWindowSession {
      * null indicates failure.
      */
     IBinder prepareDrag(IWindow window, int flags,
-            int thumbnailWidth, int thumbnailHeight, out Surface outSurface);
+            int thumbnailWidth, int thumbnailHeight, out Surface outSurface,
+            float delX, float delY, int showAnimDelay);
 
     /**
      * Initiate the drag operation itself
@@ -211,4 +212,6 @@ interface IWindowSession {
      * The assumption is that this method will be called rather infrequently.
      */
     void pokeDrawLock(IBinder window);
+
+    void getThumbModeCrop(out Rect outCrop);
 }

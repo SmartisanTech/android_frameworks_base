@@ -1820,6 +1820,13 @@
     <permission android:name="android.permission.STATUS_BAR_SERVICE"
         android:protectionLevel="signature" />
 
+    <!-- Allows an application to be the side bar.Not for use by third party apps. 
+    @hide -->
+    <permission android:name="android.permission.ONE_STEP_SERVICE"
+        android:label="@string/permgrouplab_sideBarService"
+        android:description="@string/permgroupdesc_sideBarService"
+        android:protectionLevel="signature" />
+
     <!-- @SystemApi Allows an application to force a BACK operation on whatever is the
          top activity.
          <p>Not for use by third-party applications.

@@ -193,8 +193,15 @@ public class SystemGesturesPointerEventListener implements PointerEventListener 
         final long elapsed = time - mDownTime[i];
         if (DEBUG) Slog.d(TAG, "pointer " + mDownPointerId[i]
                 + " moved (" + fromX + "->" + x + "," + fromY + "->" + y + ") in " + elapsed);
-        if (fromY <= mSwipeStartThreshold
-                && y > fromY + mSwipeDistanceThreshold
+        int topFromDy = mSwipeStartThreshold;
+        int topDy = 0;
+        if (mInSidebarMode) {
+            topFromDy += mThumbOffsetScaleVertiS;
+            topDy = mThumbOffsetScaleVertiS;
+        }
+        if (fromY <= topFromDy
+                && y > topDy
+                && y - fromY > mSwipeDistanceThreshold
                 && elapsed < SWIPE_TIMEOUT_MS) {
             return SWIPE_FROM_TOP;
         }
@@ -248,5 +255,15 @@ public class SystemGesturesPointerEventListener implements PointerEventListener 
         void onDown();
         void onUpOrCancel();
         void onDebug();
+    }
+
+    private boolean mInSidebarMode;
+    private int mThumbOffsetScaleVertiS;
+    public void setThumbOffset(int scaleModeVertOffsetS){
+        mThumbOffsetScaleVertiS = scaleModeVertOffsetS;
+    }
+
+    public void setInSidebarMode(boolean inSidebarMode) {
+        mInSidebarMode = inSidebarMode;
     }
 }

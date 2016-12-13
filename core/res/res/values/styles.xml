@@ -128,6 +128,11 @@ please see styles_device_defaults.xml.
         <item name="windowExitAnimation">@anim/translucent_exit</item>
     </style>
 
+    <style name="Animation.Thumbwallpaper">
+        <item name="windowEnterAnimation">@anim/thumb_wallpaper_enter</item>
+        <item name="windowExitAnimation">@anim/thumb_wallpaper_close</item>
+    </style>
+
     <!-- Standard animations for a non-full-screen window or activity. -->
     <style name="Animation.LockScreen">
         <item name="windowEnterAnimation">@anim/lock_screen_enter</item>

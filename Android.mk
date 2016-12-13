@@ -121,6 +121,7 @@ LOCAL_SRC_FILES += \
 	core/java/android/bluetooth/IBluetoothGattCallback.aidl \
 	core/java/android/bluetooth/IBluetoothGattServerCallback.aidl \
 	core/java/android/content/IClipboard.aidl \
+	core/java/android/content/IClipboardListener.aidl \
 	core/java/android/content/IContentService.aidl \
 	core/java/android/content/IIntentReceiver.aidl \
 	core/java/android/content/IIntentSender.aidl \
@@ -256,6 +257,9 @@ LOCAL_SRC_FILES += \
 	core/java/android/view/accessibility/IAccessibilityInteractionConnectionCallback.aidl\
 	core/java/android/view/accessibility/IAccessibilityManager.aidl \
 	core/java/android/view/accessibility/IAccessibilityManagerClient.aidl \
+	core/java/android/view/onestep/IOneStep.aidl \
+	core/java/android/view/onestep/IOneStepStateObserver.aidl \
+	core/java/android/view/onestep/IOneStepManager.aidl \
 	core/java/android/view/IApplicationToken.aidl \
 	core/java/android/view/IAssetAtlas.aidl \
 	core/java/android/view/IGraphicsStats.aidl \

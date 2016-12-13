@@ -1855,7 +1855,7 @@ public class SettingsProvider extends ContentProvider {
         }
 
         private final class UpgradeController {
-            private static final int SETTINGS_VERSION = 122;
+            private static final int SETTINGS_VERSION = 123;
 
             private final int mUserId;
 
@@ -2008,6 +2008,18 @@ public class SettingsProvider extends ContentProvider {
                     currentVersion = 122;
                 }
                 // vXXX: Add new settings above this point.
+
+                if(currentVersion == 122) {
+                    SettingsState globalSettings = getGlobalSettingsLocked();
+                    Setting currentSettings = globalSettings.getSettingLocked(Settings.Global
+                            .SIDE_BAR_MODE);
+                    if (currentSettings == null) {
+                        int defValue = getContext().getResources().getInteger(R.integer.def_side_bar_mode);
+                        globalSettings.insertSettingLocked(Settings.Global.SIDE_BAR_MODE,
+                                String.valueOf(defValue),getCallingPackage());
+                    }
+                    currentVersion = 123;
+                }
 
                 // Return the current version.
                 return currentVersion;

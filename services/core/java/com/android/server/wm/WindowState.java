@@ -24,7 +24,10 @@ import static android.view.WindowManager.LayoutParams.PRIVATE_FLAG_KEYGUARD;
 import static android.view.WindowManager.LayoutParams.TYPE_APPLICATION_STARTING;
 import static android.view.WindowManager.LayoutParams.TYPE_INPUT_METHOD;
 import static android.view.WindowManager.LayoutParams.TYPE_INPUT_METHOD_DIALOG;
+import static android.view.WindowManager.LayoutParams.TYPE_SIDEBAR_TOOLS;
 import static android.view.WindowManager.LayoutParams.TYPE_WALLPAPER;
+import static android.view.WindowManager.LayoutParams.FLAG_LAYOUT_INSET_DECOR;
+import static android.view.WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN;
 import static com.android.server.wm.WindowManagerService.DEBUG_CONFIGURATION;
 import static com.android.server.wm.WindowManagerService.DEBUG_LAYOUT;
 import static com.android.server.wm.WindowManagerService.DEBUG_ORIENTATION;
@@ -65,6 +68,7 @@ import android.view.View;
 import android.view.ViewTreeObserver;
 import android.view.WindowManager;
 import android.view.WindowManagerPolicy;
+import android.view.WindowManagerPolicy.ThumbModeFuncs;
 
 import java.io.PrintWriter;
 import java.util.ArrayList;
@@ -103,6 +107,7 @@ final class WindowState implements WindowManagerPolicy.WindowState {
     final boolean mLayoutAttached;
     final boolean mIsImWindow;
     final boolean mIsWallpaper;
+    final boolean mIsFakeWallpaper;
     final boolean mIsFloatingLayer;
     int mSeq;
     boolean mEnforceSizeCompat;
@@ -234,6 +239,7 @@ final class WindowState implements WindowManagerPolicy.WindowState {
 
     // "Real" frame that the application sees, in display coordinate space.
     final Rect mFrame = new Rect();
+    final Rect mFrameOri = new Rect();
     final Rect mLastFrame = new Rect();
     // Frame that is scaled to the application's coordinate space when in
     // screen size compatibility mode.
@@ -358,6 +364,16 @@ final class WindowState implements WindowManagerPolicy.WindowState {
     /** When true this window can be displayed on screens owther than mOwnerUid's */
     private boolean mShowToOwnerOnly;
 
+    private boolean mWinInThumbMode = false;
+    int mLeftBase = 0;
+    int mRightBase = 0;
+    int mTopBase = 0;
+    int mBotBase = 0;
+    int mHeightBase = 0;
+    int mAttrsYPosBase = 0;
+    int mWidthBase = 0;
+    int mStateThumbMode = ThumbModeHelper.THUMB_WINDOW_STATE_NORMAL;
+
     /**
      * Wake lock for drawing.
      * Even though it's slightly more expensive to do so, we will use a separate wake lock
@@ -366,6 +382,10 @@ final class WindowState implements WindowManagerPolicy.WindowState {
      * This lock is only acquired on first use.
      */
     PowerManager.WakeLock mDrawLock;
+
+    int mHintWidth;
+
+    boolean mIsSidebarSideView;
 
     WindowState(WindowManagerService service, Session s, IWindow c, WindowToken token,
            WindowState attachedWindow, int appOp, int seq, WindowManager.LayoutParams a,
@@ -409,6 +429,7 @@ final class WindowState implements WindowManagerPolicy.WindowState {
             mLayoutAttached = false;
             mIsImWindow = false;
             mIsWallpaper = false;
+            mIsFakeWallpaper = false;
             mIsFloatingLayer = false;
             mBaseLayer = 0;
             mSubLayer = 0;
@@ -458,6 +479,7 @@ final class WindowState implements WindowManagerPolicy.WindowState {
                     || attachedWindow.mAttrs.type == TYPE_INPUT_METHOD_DIALOG;
             mIsWallpaper = attachedWindow.mAttrs.type == TYPE_WALLPAPER;
             mIsFloatingLayer = mIsImWindow || mIsWallpaper;
+            mIsFakeWallpaper = mIsWallpaper && ThumbModeHelper.THUMB_WALLPAPER_WINDOW_TITLE.equals(mAttrs.getTitle());
         } else {
             // The multiplier here is to reserve space for multiple
             // windows in the same type layer.
@@ -471,6 +493,7 @@ final class WindowState implements WindowManagerPolicy.WindowState {
                     || mAttrs.type == TYPE_INPUT_METHOD_DIALOG;
             mIsWallpaper = mAttrs.type == TYPE_WALLPAPER;
             mIsFloatingLayer = mIsImWindow || mIsWallpaper;
+            mIsFakeWallpaper = false;
         }
 
         WindowState appWin = this;
@@ -511,6 +534,11 @@ final class WindowState implements WindowManagerPolicy.WindowState {
         mInputWindowHandle = new InputWindowHandle(
                 mAppToken != null ? mAppToken.mInputApplicationHandle : null, this,
                 displayContent.getDisplayId());
+        if(mAttrs.getTitle() != null && mAttrs.getTitle().toString().equals("sidebar_sideview")) {
+            mIsSidebarSideView = true;
+            mHintWidth = mContext.getResources().getDimensionPixelSize(
+                    com.android.internal.R.dimen.sidebar_width);
+        }
     }
 
     void attach() {
@@ -650,7 +678,25 @@ final class WindowState implements WindowManagerPolicy.WindowState {
             mOutsets.set(0, 0, 0, 0);
         }
 
-        // Make sure the content and visible frames are inside of the
+        mLeftBase = mFrame.left;
+        mTopBase = mFrame.top;
+        mRightBase = mFrame.right;
+        mBotBase = mFrame.bottom;
+        mHeightBase = mFrame.height();
+        mWidthBase = mFrame.width();
+
+
+        if(mAttrsYPosBase != mAttrs.y){
+            mLeftBase = mFrame.left;
+            mTopBase = mFrame.top;
+            mRightBase = mFrame.right;
+            mBotBase = mFrame.bottom;
+            mAttrsYPosBase = mAttrs.y;
+        }
+
+        mWinInThumbMode = false;
+
+            // Make sure the content and visible frames are inside of the
         // final window frame.
         mContentFrame.set(Math.max(mContentFrame.left, mFrame.left),
                 Math.max(mContentFrame.top, mFrame.top),
@@ -1048,7 +1094,7 @@ final class WindowState implements WindowManagerPolicy.WindowState {
         }
         return mHasSurface && !mDestroying
                 && ((!mAttachedHidden && mViewVisibility == View.VISIBLE
-                                && !mRootToken.hidden)
+                                && (mIsFakeWallpaper ? true : !mRootToken.hidden))
                         || mWinAnimator.mAnimation != null
                         || ((atoken != null) && (atoken.mAppAnimator.animation != null)
                                 && !mWinAnimator.isDummyAnimation()));
@@ -1127,15 +1173,27 @@ final class WindowState implements WindowManagerPolicy.WindowState {
      * sense to call from performLayoutAndPlaceSurfacesLockedInner().)
      */
     boolean hasMoved() {
-        return mHasSurface && mContentChanged && !mExiting && !mWinAnimator.mLastHidden
-                && mService.okToDisplay() && (mFrame.top != mLastFrame.top
-                        || mFrame.left != mLastFrame.left)
+        if(canMovedByThumb()){
+            if(ThumbModeHelper.getInstance().needAnimatedMove()
+                    && !mExiting && !mWinAnimator.mLastHidden && mService.okToDisplay()
+                    && (mAttachedWindow == null || !mAttachedWindow.hasMoved())){
+                return true;
+            }
+        }
+        return mHasSurface && mContentChanged && !mExiting && !mWinAnimator.mLastHidden && mService.okToDisplay()
+                && (mFrame.top != mLastFrame.top
+                    || mFrame.left != mLastFrame.left)
                 && (mAttachedWindow == null || !mAttachedWindow.hasMoved());
     }
 
     boolean isFullscreen(int screenWidth, int screenHeight) {
-        return mFrame.left <= 0 && mFrame.top <= 0 &&
-                mFrame.right >= screenWidth && mFrame.bottom >= screenHeight;
+        if((mStateThumbMode != ThumbModeHelper.THUMB_WINDOW_STATE_NORMAL)){
+            return mLeftBase <= 0 && mTopBase <= 0 &&
+                    mRightBase >= screenWidth && mBotBase >= screenHeight;
+        }else{
+            return mFrame.left <= 0 && mFrame.top <= 0 &&
+                    mFrame.right >= screenWidth && mFrame.bottom >= screenHeight;
+        }
     }
 
     boolean isConfigChanged() {
@@ -1433,6 +1491,7 @@ final class WindowState implements WindowManagerPolicy.WindowState {
 
     public void getTouchableRegion(Region outRegion) {
         final Rect frame = mFrame;
+        boolean regionScaled = false;
         switch (mTouchableInsets) {
             default:
             case ViewTreeObserver.InternalInsetsInfo.TOUCHABLE_INSETS_FRAME:
@@ -1447,8 +1506,22 @@ final class WindowState implements WindowManagerPolicy.WindowState {
             case ViewTreeObserver.InternalInsetsInfo.TOUCHABLE_INSETS_REGION: {
                 final Region givenTouchableRegion = mGivenTouchableRegion;
                 outRegion.set(givenTouchableRegion);
+                if(mWinInThumbMode && mGlobalScale != 1.0f){
+                    outRegion.scale(mGlobalScale);
+                    regionScaled = true;
+                }
                 outRegion.translate(frame.left, frame.top);
                 break;
+            }
+        }
+        if(mIsSidebarSideView) {
+            if ((mAttrs.flags & (FLAG_LAYOUT_IN_SCREEN | FLAG_LAYOUT_INSET_DECOR))
+                    == (FLAG_LAYOUT_IN_SCREEN | FLAG_LAYOUT_INSET_DECOR)) {
+                if (mAttrs.gravity == (Gravity.LEFT | Gravity.FILL_VERTICAL)) {
+                    outRegion.set(mFrame.left, mFrame.top, mFrame.left + mHintWidth, mFrame.bottom);
+                } else if(mAttrs.gravity == (Gravity.RIGHT | Gravity.FILL_VERTICAL)) {
+                    outRegion.set(mFrame.right - mHintWidth, 0, mFrame.right, mFrame.bottom);
+                }
             }
         }
     }
@@ -1500,8 +1573,10 @@ final class WindowState implements WindowManagerPolicy.WindowState {
             setConfiguration(mService.mCurConfiguration, overrideConfig);
             if (DEBUG_ORIENTATION && mWinAnimator.mDrawState == WindowStateAnimator.DRAW_PENDING)
                 Slog.i(TAG, "Resizing " + this + " WITH DRAW PENDING");
-
-            final Rect frame = mFrame;
+            if (DEBUG_RESIZE) {
+                Slog.i(TAG, "Resizing drawing state: " + mWinAnimator.mDrawState);
+            }
+            final Rect frame = mIsImWindow ? mFrameOri : mFrame;
             final Rect overscanInsets = mLastOverscanInsets;
             final Rect contentInsets = mLastContentInsets;
             final Rect visibleInsets = mLastVisibleInsets;
@@ -1779,5 +1854,110 @@ final class WindowState implements WindowManagerPolicy.WindowState {
                     + " " + mLastTitle + (mExiting ? " EXITING}" : "}");
         }
         return mStringNameCache;
+    }
+
+    private int mThumbState = 0;
+
+    private float mOneHandedScale = 1.0f;
+    public boolean adjustThumbLayout(){
+        boolean canMovedByThumb = canMovedByThumb();
+        if(canMovedByThumb && mThumbState != ThumbModeHelper.getInstance().getThumbStates()){
+            mThumbState = ThumbModeHelper.getInstance().getThumbStates();
+            ThumbModeHelper.getInstance().dispatchThumbStatesOnlyWin(this);
+        }
+
+        if(!mWinInThumbMode){
+            mFrameOri.set(mFrame.left, mFrame.top, mFrame.right, mFrame.bottom);
+        }
+
+        if(canMovedByThumb){
+            if(ThumbModeHelper.getInstance().needAdjustFrameToThumb() && !mWinInThumbMode){
+                if(ThumbModeHelper.getInstance().getPendingThumbAction() == ThumbModeFuncs.ACTION_FROM_TOP_LEFT_PULL_DOWN_SIDEBAR){
+                    int frameWidth = mFrame.width();
+                    int frameHeight = mFrame.height();
+                    mFrame.top = (int)(mTopBase * mService.mScaleThumbScaleS + mService.mScaleThumbYOffsetS);
+                    mFrame.left = (int)(mLeftBase * mService.mScaleThumbScaleS);
+                    mFrame.right = mFrame.left + frameWidth;
+                    mFrame.bottom = mFrame.top + frameHeight;
+                    mGlobalScale = mService.mScaleThumbScaleS;
+                    mStateThumbMode = ThumbModeHelper.THUMB_WINDOW_STATE_LEFTBOTTOM_SIDEBAR;
+                }else if (ThumbModeHelper.getInstance().getPendingThumbAction() == ThumbModeFuncs.ACTION_FROM_TOP_RIGHT_PULL_DOWN_SIDEBAR){
+                    int frameWidth = mFrame.width();
+                    int frameHeight = mFrame.height();
+                    mFrame.top = (int)(mTopBase * mService.mScaleThumbScaleS + mService.mScaleThumbYOffsetS);
+                    mFrame.left = (int)(mLeftBase * mService.mScaleThumbScaleS + mService.mScaleThumbXOffsetS);
+                    mFrame.right = mFrame.left + frameWidth;
+                    mFrame.bottom = mFrame.top + frameHeight;
+                    mGlobalScale = mService.mScaleThumbScaleS;
+                    mStateThumbMode = ThumbModeHelper.THUMB_WINDOW_STATE_RIGHTBOTTOM_SIDEBAR;
+                } else{
+                    return false;
+                }
+
+                mWinInThumbMode = true;
+                if(mIsImWindow == false){
+                    mCompatFrame.set(mFrame);
+                }
+                return true;
+            }else if(ThumbModeHelper.getInstance().needAdjustFrameToNoraml() && mWinInThumbMode){
+                int frameHeight = mFrame.height();
+                mFrame.top = mTopBase;
+                if(mHeightBase != frameHeight){
+                    mFrame.bottom = mFrame.top + frameHeight;
+                }else{
+                    mFrame.bottom = mBotBase;
+                }
+                int frameWidth = mFrame.width();
+                mFrame.left = mLeftBase;
+                if(mWidthBase != frameWidth){
+                    mFrame.right = mFrame.left + frameWidth;
+                }else{
+                    mFrame.right = mRightBase;
+                }
+                mWinInThumbMode = false;
+                mGlobalScale = 1f;
+                if(mIsImWindow == false){
+                    mCompatFrame.set(mFrame);
+                }
+                return true;
+            }
+            return false;
+        }
+        return false;
+    }
+
+    public boolean canMovedByThumb(){
+        if(this.getAttrs().type != WindowManager.LayoutParams.TYPE_WALLPAPER
+                && this.getAttrs().type != WindowManager.LayoutParams.TYPE_SIDEBAR_TOOLS
+                && (this.mAttachedWindow == null || this.mAttachedWindow.getAttrs().type != WindowManager.LayoutParams.TYPE_SIDEBAR_TOOLS)
+                && this.getAttrs().type != WindowManager.LayoutParams.TYPE_KEYGUARD
+                && this.getAttrs().type != WindowManager.LayoutParams.TYPE_KEYGUARD_DIALOG
+                && this.getAttrs().type != WindowManager.LayoutParams.TYPE_KEYGUARD_SCRIM
+                && this.getAttrs().type != WindowManager.LayoutParams.TYPE_SECURE_SYSTEM_OVERLAY
+                && !ThumbModeHelper.SCREEN_SHOT_WINDOW_TITLE.equals(this.getAttrs().getTitle())
+                && !ThumbModeHelper.SHOT_SCREEN_SHOT_WINDOW_TITLE.equals(this.getAttrs().getTitle())
+                && !ThumbModeHelper.THUMB_WALLPAPER_WINDOW_TITLE.equals(this.getAttrs().getTitle())
+                && (mAttachedWindow == null || mAttachedWindow.canMovedByThumb())){
+            return true;
+        }
+        return false;
+    }
+
+    public boolean isWinInThumbMode(){
+        return mWinInThumbMode;
+    }
+
+    /**
+     * @hide
+     * */
+    public int getHintWidth() {
+        return mHintWidth;
+    }
+
+    /**
+     * @hide
+     * */
+    public boolean isSidebarSideView() {
+        return mIsSidebarSideView;
     }
 }

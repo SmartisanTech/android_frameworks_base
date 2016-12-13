@@ -71,6 +71,7 @@ public final class InputConsumerImpl implements WindowManagerPolicy.InputConsume
         mWindowHandle.ownerUid = Process.myUid();
         mWindowHandle.inputFeatures = 0;
         mWindowHandle.scaleFactor = 1.0f;
+        mWindowHandle.inThumbMode = false;
     }
 
     void layout(int dw, int dh) {

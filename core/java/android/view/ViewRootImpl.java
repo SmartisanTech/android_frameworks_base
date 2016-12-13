@@ -22,6 +22,7 @@ import android.app.ActivityManagerNative;
 import android.content.ClipDescription;
 import android.content.ComponentCallbacks;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.CompatibilityInfo;
 import android.content.res.Configuration;
@@ -52,6 +53,8 @@ import android.os.RemoteException;
 import android.os.SystemClock;
 import android.os.SystemProperties;
 import android.os.Trace;
+import android.os.UserHandle;
+import android.provider.Settings;
 import android.util.AndroidRuntimeException;
 import android.util.DisplayMetrics;
 import android.util.Log;
@@ -338,8 +341,58 @@ public final class ViewRootImpl implements ViewParent,
 
     private int mViewLayoutDirectionInitial;
 
+    private float mThumbOffsetVeri;
+    private static float SCALE_SIDEBAR = 0.8832f;
+    private static int SCREEN_HEIGHT = 0;
+    private static int SCREEN_WIDTH = 0;
+    public static int THUMB_OFFSET_S_MODE_VERI = 0;
+    public static int THUMB_OFFSET_S_MODE_HORI = 0;
+
     /** Set to true once doDie() has been called. */
     private boolean mRemoved;
+
+    //thumb mode state values
+    int mThumbModeStates = 0;
+    public static final int BIT_THUMB_MODE_ENABLE_SIDEBAR = 1<<0;
+    public static final int BIT_WINDOW_IN_THUMB_MODE_SIDEBAR = 1<<2;
+    public static final int BIT_WINDOW_IN_THUMB_MODE_TYPE_L_CORNER_SIDEBAR = 1<<5;
+    public static final int BIT_WINDOW_IN_THUMB_MODE_TYPE_R_CORNER_SIDEBAR = 1<<6;
+    public static final int TRANSACTION_THUMB_STATES = 1000;
+
+    public final class WinScaleState{
+        public static final int NORMAL = 0;
+        public static final int LEFT = 1;
+        public static final int RIGHT = 2;
+    }
+
+    /**
+     * @hide
+     */
+    public final int getWindowScaleState() {
+        if((mThumbModeStates & BIT_WINDOW_IN_THUMB_MODE_TYPE_L_CORNER_SIDEBAR) != 0){
+            return WinScaleState.LEFT;
+        }
+        if((mThumbModeStates & BIT_WINDOW_IN_THUMB_MODE_TYPE_R_CORNER_SIDEBAR) != 0){
+            return WinScaleState.RIGHT;
+        }
+        return WinScaleState.NORMAL;
+    }
+
+    /**
+     * @hide
+     */
+    public final float getWindowScale() {
+        float scale = 1.0f;
+        if((mThumbModeStates & BIT_WINDOW_IN_THUMB_MODE_SIDEBAR) != 0){
+            scale = SCALE_SIDEBAR;
+        }
+        return scale;
+    }
+
+    ///////////////////////////////////////
+    // for power save
+    private int mNeedPowerSave = 0;
+    ////////////////////////////////////
 
     /**
      * Consistency verifier for debugging purposes.
@@ -354,6 +407,9 @@ public final class ViewRootImpl implements ViewParent,
         int localValue;
         int localChanges;
     }
+
+    private static final int DELAY_RESET_THUMB_STATE_TOUCH_TIMEOUT = 1000;
+    private static final int DELAY_RESET_THUMB_STATE_IDLE_TIMEOUT = 5000;
 
     public ViewRootImpl(Context context, Display display) {
         mContext = context;
@@ -390,11 +446,76 @@ public final class ViewRootImpl implements ViewParent,
                 mHighContrastTextManager);
         mViewConfiguration = ViewConfiguration.get(context);
         mDensity = context.getResources().getDisplayMetrics().densityDpi;
+        SCREEN_HEIGHT = context.getResources().getDisplayMetrics().heightPixels;
+        SCREEN_WIDTH = context.getResources().getDisplayMetrics().widthPixels;
+        SCALE_SIDEBAR = getSidebarScale(SCREEN_WIDTH);
+        THUMB_OFFSET_S_MODE_VERI = SCREEN_HEIGHT - (int)(SCREEN_HEIGHT * SCALE_SIDEBAR + 0.5f);
+        THUMB_OFFSET_S_MODE_HORI = SCREEN_WIDTH - (int)(SCREEN_WIDTH * SCALE_SIDEBAR + 0.5f);
         mNoncompatDensity = context.getResources().getDisplayMetrics().noncompatDensityDpi;
         mFallbackEventHandler = new PhoneFallbackEventHandler(context);
         mChoreographer = Choreographer.getInstance();
         mDisplayManager = (DisplayManager)context.getSystemService(Context.DISPLAY_SERVICE);
         loadSystemProperties();
+    }
+
+    private void updateThumbOffset(){
+        if((mThumbModeStates & BIT_WINDOW_IN_THUMB_MODE_SIDEBAR) != 0){
+            mThumbOffsetVeri = THUMB_OFFSET_S_MODE_VERI;
+        }
+    }
+
+    public int getThumbModeState(){
+        return mThumbModeStates;
+    }
+
+    public float getThumbOffset(){
+        return mThumbOffsetVeri;
+    }
+
+    public void getScreenSizeOffset(int[] offset) {
+        switch (getWindowScaleState()) {
+            case WinScaleState.RIGHT:
+                if ((mThumbModeStates & BIT_WINDOW_IN_THUMB_MODE_SIDEBAR) != 0) {
+                    offset[0] = THUMB_OFFSET_S_MODE_HORI;
+                    offset[1] = THUMB_OFFSET_S_MODE_VERI;
+                }
+                break;
+            case WinScaleState.LEFT:
+                offset[0] = 0;
+                offset[1] = (int) mThumbOffsetVeri;
+                break;
+            default:
+                offset[0] = offset[1] = 0;
+                break;
+        }
+    }
+
+    private boolean mWindowScaleChanged = false;
+
+    void updateThumbModeState(int states) {
+        int lastState = mThumbModeStates;
+        mThumbModeStates = states;
+        if((mThumbModeStates & BIT_WINDOW_IN_THUMB_MODE_SIDEBAR) == 0){
+            mHandler.removeCallbacks(mResetThumbModeRunnable);
+        }else{
+            updateThumbOffset();
+        }
+
+        if(((lastState & BIT_WINDOW_IN_THUMB_MODE_SIDEBAR) != 0
+                && (mThumbModeStates & BIT_WINDOW_IN_THUMB_MODE_SIDEBAR) == 0)
+                || ((lastState & BIT_WINDOW_IN_THUMB_MODE_SIDEBAR) == 0
+                && (mThumbModeStates & BIT_WINDOW_IN_THUMB_MODE_SIDEBAR) != 0)){
+            mWindowScaleChanged = true;
+        }else{
+            mWindowScaleChanged = false;
+        }
+    }
+
+    // scale only used to determine position offset
+    public float getSidebarScale(float w){
+        int sidebarWidthPx = mContext.getResources().getDimensionPixelSize(
+                com.android.internal.R.dimen.sidebar_width);
+        return  1 - (sidebarWidthPx/w);
     }
 
     public static void addFirstDrawHandler(Runnable callback) {
@@ -645,6 +766,7 @@ public final class ViewRootImpl implements ViewParent,
                 mFirstInputStage = nativePreImeStage;
                 mFirstPostImeInputStage = earlyPostImeStage;
                 mPendingInputEventQueueLengthCounterName = "aq:pending:" + counterSuffix;
+
             }
         }
     }
@@ -1071,6 +1193,17 @@ public final class ViewRootImpl implements ViewParent,
             mAttachInfo.mHardwareRenderer.notifyFramePending();
         }
     }
+
+    private Runnable mResetThumbModeRunnable = new Runnable(){
+        @Override
+        public void run() {
+            try {
+                mView.getContext().sendBroadcastAsUser(
+                        new Intent("android.view.ViewRootImpl.returnNormalModeFromThumb"), UserHandle.OWNER);
+            } catch (Exception e) {
+            }
+        }
+    };
 
     void scheduleTraversals() {
         if (!mTraversalScheduled) {
@@ -1979,7 +2112,11 @@ public final class ViewRootImpl implements ViewParent,
             mAttachInfo.mHasNonEmptyGivenInternalInsets = !insets.isEmpty();
 
             // Tell the window manager.
-            if (insetsPending || !mLastGivenInsets.equals(insets)) {
+            if (insetsPending || !mLastGivenInsets.equals(insets) || mWindowScaleChanged) {
+                if(mWindowScaleChanged){
+                    Log.w("Sidebar", "Window scale changed, do set touch Insets again to wms");
+                }
+                mWindowScaleChanged = false;
                 mLastGivenInsets.set(insets);
 
                 // Translate insets to screen coordinates if needed.
@@ -3195,6 +3332,7 @@ public final class ViewRootImpl implements ViewParent,
     private final static int MSG_DISPATCH_WINDOW_SHOWN = 25;
     private final static int MSG_DISPATCH_WINDOW_ANIMATION_STOPPED = 26;
     private final static int MSG_DISPATCH_WINDOW_ANIMATION_STARTED = 27;
+    private final static int MSG_DISPATCH_THUMB_MODE_STATES = 28;
 
     final class ViewRootHandler extends Handler {
         @Override
@@ -3248,6 +3386,8 @@ public final class ViewRootImpl implements ViewParent,
                     return "MSG_SYNTHESIZE_INPUT_EVENT";
                 case MSG_DISPATCH_WINDOW_SHOWN:
                     return "MSG_DISPATCH_WINDOW_SHOWN";
+                case MSG_DISPATCH_THUMB_MODE_STATES:
+                    return "MSG_DISPATCH_THUMB_MODE_STATES";
             }
             return super.getMessageName(message);
         }
@@ -3403,6 +3543,10 @@ public final class ViewRootImpl implements ViewParent,
                                     AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED);
                         }
                     }
+
+                    if(!hasWindowFocus && mHandler.hasCallbacks(mResetThumbModeRunnable)){
+                        mHandler.removeCallbacks(mResetThumbModeRunnable);
+                    }
                 }
             } break;
             case MSG_DIE:
@@ -3484,6 +3628,11 @@ public final class ViewRootImpl implements ViewParent,
             case MSG_DISPATCH_WINDOW_SHOWN: {
                 handleDispatchWindowShown();
             }
+            break;
+            case MSG_DISPATCH_THUMB_MODE_STATES: {
+                int states = msg.arg1;
+                updateThumbModeState(states);
+            } break;
             }
         }
     }
@@ -4039,8 +4188,8 @@ public final class ViewRootImpl implements ViewParent,
 
             // Remember the touch position for possible drag-initiation.
             if (event.isTouchEvent()) {
-                mLastTouchPoint.x = event.getRawX();
-                mLastTouchPoint.y = event.getRawY();
+                mLastTouchPoint.x = event.getX();
+                mLastTouchPoint.y = event.getY();
             }
             return FORWARD;
         }
@@ -5232,8 +5381,11 @@ public final class ViewRootImpl implements ViewParent,
         return false;
     }
 
-    /* drag/drop */
-    void setLocalDragState(Object obj) {
+    /**
+     * @hide
+     * drag/drop
+     */
+    public void setLocalDragState(Object obj) {
         mLocalDragState = obj;
     }
 
@@ -6280,6 +6432,13 @@ public final class ViewRootImpl implements ViewParent,
         }
     }
 
+    public void dispatchThumbModeStates(int states) {
+        Message msg = Message.obtain();
+        msg.what = MSG_DISPATCH_THUMB_MODE_STATES;
+        msg.arg1 = states;
+        mHandler.sendMessage(msg);
+    }
+
     /**
      * Post a callback to send a
      * {@link AccessibilityEvent#TYPE_WINDOW_CONTENT_CHANGED} event.
@@ -6844,12 +7003,21 @@ public final class ViewRootImpl implements ViewParent,
         }
 
         @Override
+        public void dispatchThumbModeStates(int states) {
+            final ViewRootImpl viewAncestor = mViewAncestor.get();
+            if (viewAncestor != null) {
+                viewAncestor.dispatchThumbModeStates(states);
+            }
+        }
+
+        @Override
         public void dispatchWindowShown() {
             final ViewRootImpl viewAncestor = mViewAncestor.get();
             if (viewAncestor != null) {
                 viewAncestor.dispatchWindowShown();
             }
         }
+
     }
 
     public static final class CalledFromWrongThreadException extends AndroidRuntimeException {

@@ -177,6 +177,10 @@
          >0 is milliseconds of screen-off time after which battery sounds will not play -->
     <integer name="def_low_battery_sound_timeout">0</integer>
 
+    <!-- Default for Settings.Global.SIDE_BAR_MODE
+         0 means OFF; 1 means ON-->
+    <integer name="def_side_bar_mode">1</integer>
+
     <!-- Initial value for the Settings.Secure.IMMERSIVE_MODE_CONFIRMATIONS setting,
          which is a comma separated list of packages that no longer need confirmation
          for immersive mode.

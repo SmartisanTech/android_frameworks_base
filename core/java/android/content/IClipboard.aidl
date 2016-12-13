@@ -18,6 +18,8 @@ package android.content;
 
 import android.content.ClipData;
 import android.content.ClipDescription;
+import android.content.CopyHistoryItem;
+import android.content.IClipboardListener;
 import android.content.IOnPrimaryClipChangedListener;
 
 /**
@@ -26,7 +28,7 @@ import android.content.IOnPrimaryClipChangedListener;
  * {@hide}
  */
 interface IClipboard {
-    void setPrimaryClip(in ClipData clip, String callingPackage);
+    void setPrimaryClip(in ClipData clip, boolean inHistory, String callingPackage);
     ClipData getPrimaryClip(String pkg);
     ClipDescription getPrimaryClipDescription(String callingPackage);
     boolean hasPrimaryClip(String callingPackage);
@@ -38,4 +40,8 @@ interface IClipboard {
      * Returns true if the clipboard contains text; false otherwise.
      */
     boolean hasClipboardText(String callingPackage);
+    List<CopyHistoryItem> getCopyHistory();
+    void clearCopyHistory();
+    void delete(in CopyHistoryItem item);
+    void registerListener(IClipboardListener listener);
 }

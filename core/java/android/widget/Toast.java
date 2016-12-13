@@ -287,6 +287,27 @@ public class Toast {
     }
 
     /**
+     * add for smartisan os
+     *
+     * @hide
+     */
+    public static Toast makeText(Context context, CharSequence text, int duration, int type) {
+        Toast result = makeText(context, text, duration);
+        result.setToastWindowType(type);
+        return result;
+
+    }
+
+    /**
+     * add for smartisan os
+     */
+    private void setToastWindowType(int type) {
+        if (mTN != null) {
+            mTN.setWindowType(type);
+        }
+    }
+
+    /**
      * Update the text in a Toast that was previously created using one of the makeText() methods.
      * @param resId The new text for the Toast.
      */
@@ -455,6 +476,17 @@ public class Toast {
                 }
 
                 mView = null;
+            }
+        }
+
+        /**
+         * add for smartisan os
+         *
+         * @hide
+         */
+        public void setWindowType(int type) {
+            if (mParams != null) {
+                mParams.type = type;
             }
         }
     }

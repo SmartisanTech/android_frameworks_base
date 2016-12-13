@@ -17,6 +17,7 @@
 package android.view;
 
 import android.annotation.NonNull;
+import android.graphics.Rect;
 import android.os.IBinder;
 
 /**
@@ -119,5 +120,13 @@ public final class WindowManagerImpl implements WindowManager {
     @Override
     public Display getDefaultDisplay() {
         return mDisplay;
+    }
+
+    /**
+     * @hide
+     * */
+    @Override
+    public void getThumbModeCrop(Rect outCrop) {
+        mGlobal.getThumbModeCrop(outCrop);
     }
 }

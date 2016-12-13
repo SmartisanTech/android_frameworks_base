@@ -491,6 +491,10 @@ class WindowStateAnimator {
     }
 
     void hide() {
+        if(mWin.mIsFakeWallpaper && ThumbModeHelper.getInstance().isSysInThumbMode()){
+            return;
+        }
+
         if (!mLastHidden) {
             //dump();
             mLastHidden = true;
@@ -1037,7 +1041,7 @@ class WindowStateAnimator {
         // Wallpapers are animated based on the "real" window they
         // are currently targeting.
         final WindowState wallpaperTarget = mService.mWallpaperTarget;
-        if (mIsWallpaper && wallpaperTarget != null && mService.mAnimateWallpaperWithTarget) {
+        if (!mWin.mIsFakeWallpaper && mIsWallpaper && wallpaperTarget != null && mService.mAnimateWallpaperWithTarget) {
             final WindowStateAnimator wallpaperAnimator = wallpaperTarget.mWinAnimator;
             if (wallpaperAnimator.mHasLocalTransformation &&
                     wallpaperAnimator.mAnimation != null &&
@@ -1092,16 +1096,24 @@ class WindowStateAnimator {
             } else {
                 tmpMatrix.reset();
             }
+            boolean isAttatchedFullScreenWinInThumbMode =
+                    ThumbModeHelper.getInstance().isSysInThumbMode() && attachedTransformation != null
+                    && mWin.isFullscreen(ThumbModeHelper.WIDTH_SCREEN, ThumbModeHelper.HEIGHT_SCREEN);
+            if (appTransformation != null) {
+                tmpMatrix.postConcat(appTransformation.getMatrix());
+            }
             tmpMatrix.postScale(mWin.mGlobalScale, mWin.mGlobalScale);
             if (selfTransformation) {
                 tmpMatrix.postConcat(mTransformation.getMatrix());
             }
-            tmpMatrix.postTranslate(frame.left + mWin.mXOffset, frame.top + mWin.mYOffset);
+            if(!isAttatchedFullScreenWinInThumbMode){
+                tmpMatrix.postTranslate(frame.left + mWin.mXOffset, frame.top + mWin.mYOffset);
+            }
             if (attachedTransformation != null) {
                 tmpMatrix.postConcat(attachedTransformation.getMatrix());
             }
-            if (appTransformation != null) {
-                tmpMatrix.postConcat(appTransformation.getMatrix());
+            if(isAttatchedFullScreenWinInThumbMode){
+                tmpMatrix.postTranslate(frame.left + mWin.mXOffset, frame.top + mWin.mYOffset);
             }
             if (screenAnimation) {
                 tmpMatrix.postConcat(screenRotationAnimation.getEnterTransformation().getMatrix());
@@ -1133,6 +1145,10 @@ class WindowStateAnimator {
             float y = tmpFloats[Matrix.MTRANS_Y];
             int w = frame.width();
             int h = frame.height();
+            // vertical move of wallpaper is not permitted.
+            if (mIsWallpaper){
+                y = 0;
+            }
             mWin.mShownFrame.set(x, y, x+w, y+h);
 
             // Now set the alpha...  but because our current hardware
@@ -1244,8 +1260,15 @@ class WindowStateAnimator {
         final int height = w.mFrame.height();
 
         // Compute the offset of the window in relation to the decor rect.
-        final int left = w.mXOffset + w.mFrame.left;
-        final int top = w.mYOffset + w.mFrame.top;
+        int top;
+        int left;
+        if (w.isWinInThumbMode()) {
+            left = w.mXOffset + w.mLeftBase;
+            top = w.mYOffset + w.mTopBase;
+        } else {
+            left = w.mXOffset + w.mFrame.left;
+            top = w.mYOffset + w.mFrame.top;
+        }
 
         // Initialize the decor rect to the entire frame.
         w.mSystemDecorRect.set(0, 0, width, height);
@@ -1269,7 +1292,12 @@ class WindowStateAnimator {
         }
     }
 
-    void updateSurfaceWindowCrop(final boolean recoveringMemory) {
+    void updateSurfaceWindowCrop(final boolean recoveringMemory){
+        updateSurfaceWindowCrop(recoveringMemory, false, 0, 0, 0, 0);
+    }
+
+    void updateSurfaceWindowCrop(final boolean recoveringMemory, boolean needThumbAdjust,
+                                 int left, int top, int width, int height) {
         final WindowState w = mWin;
         final DisplayContent displayContent = w.getDisplayContent();
         if (displayContent == null) {
@@ -1290,8 +1318,13 @@ class WindowStateAnimator {
                     displayInfo.logicalWidth - w.mCompatFrame.left,
                     displayInfo.logicalHeight - w.mCompatFrame.top);
         } else if (w.mLayer >= mService.mSystemDecorLayer) {
-            // Above the decor layer is easy, just use the entire window.
-            w.mSystemDecorRect.set(0, 0, w.mCompatFrame.width(), w.mCompatFrame.height());
+            if (w.isSidebarSideView()) {
+                applyDecorRect(w.mDecorFrame);
+            } else {
+                // Above the decor layer is easy, just use the entire window.
+                w.mSystemDecorRect.set(0, 0, w.mCompatFrame.width(), w.mCompatFrame.height());
+            }
+
         } else if (w.mDecorFrame.isEmpty()) {
             // Windows without policy decor aren't cropped.
             w.mSystemDecorRect.set(0, 0, w.mCompatFrame.width(), w.mCompatFrame.height());
@@ -1330,6 +1363,14 @@ class WindowStateAnimator {
         // so we need to translate to match the actual surface coordinates.
         clipRect.offset(attrs.surfaceInsets.left, attrs.surfaceInsets.top);
 
+        boolean camPreview = mWin.mAttachedWindow != null &&
+                "com.android.camera2/com.android.camera.CameraLauncher"
+                        .equals(mWin.mAttachedWindow.getAttrs().getTitle());
+
+        if(needThumbAdjust && mWin.canMovedByThumb() && mWin.isWinInThumbMode()){
+            ThumbModeHelper.getInstance().clampSurfaceRect(clipRect,
+                    left, top, width, height, camPreview, mDsDx * w.mHScale, mDtDy * w.mVScale);
+        }
         if (!clipRect.equals(mLastClipRect)) {
             mLastClipRect.set(clipRect);
             try {
@@ -1442,7 +1483,7 @@ class WindowStateAnimator {
             }
         }
 
-        updateSurfaceWindowCrop(recoveringMemory);
+        updateSurfaceWindowCrop(recoveringMemory, true, (int)left, (int)top, width, height);
     }
 
     public void prepareSurfaceLocked(final boolean recoveringMemory) {
@@ -1463,33 +1504,7 @@ class WindowStateAnimator {
 
         setSurfaceBoundariesLocked(recoveringMemory);
 
-        if (mIsWallpaper && !mWin.mWallpaperVisible) {
-            // Wallpaper is no longer visible and there is no wp target => hide it.
-            hide();
-        } else if (w.mAttachedHidden || !w.isOnScreen()) {
-            hide();
-            mService.hideWallpapersLocked(w);
-
-            // If we are waiting for this window to handle an
-            // orientation change, well, it is hidden, so
-            // doesn't really matter.  Note that this does
-            // introduce a potential glitch if the window
-            // becomes unhidden before it has drawn for the
-            // new orientation.
-            if (w.mOrientationChanging) {
-                w.mOrientationChanging = false;
-                if (DEBUG_ORIENTATION) Slog.v(TAG,
-                        "Orientation change skips hidden " + w);
-            }
-        } else if (mLastLayer != mAnimLayer
-                || mLastAlpha != mShownAlpha
-                || mLastDsDx != mDsDx
-                || mLastDtDx != mDtDx
-                || mLastDsDy != mDsDy
-                || mLastDtDy != mDtDy
-                || w.mLastHScale != w.mHScale
-                || w.mLastVScale != w.mVScale
-                || mLastHidden) {
+        if(mWin.mIsFakeWallpaper && ThumbModeHelper.getInstance().isSysInThumbMode()){
             displayed = true;
             mLastAlpha = mShownAlpha;
             mLastLayer = mAnimLayer;
@@ -1545,10 +1560,89 @@ class WindowStateAnimator {
                 }
             }
         } else {
+            if (mIsWallpaper && !mWin.mWallpaperVisible) {
+                // Wallpaper is no longer visible and there is no wp target => hide it.
+                hide();
+            } else if (w.mAttachedHidden || !w.isReadyForDisplay()) {
+                hide();
+                mService.hideWallpapersLocked(w);
+
+                // If we are waiting for this window to handle an
+                // orientation change, well, it is hidden, so
+                // doesn't really matter.  Note that this does
+                // introduce a potential glitch if the window
+                // becomes unhidden before it has drawn for the
+                // new orientation.
+                if (w.mOrientationChanging) {
+                    w.mOrientationChanging = false;
+                    if (DEBUG_ORIENTATION) Slog.v(TAG,
+                            "Orientation change skips hidden " + w);
+                }
+            } else if (mLastLayer != mAnimLayer
+                    || mLastAlpha != mShownAlpha
+                    || mLastDsDx != mDsDx
+                    || mLastDtDx != mDtDx
+                    || mLastDsDy != mDsDy
+                    || mLastDtDy != mDtDy
+                    || w.mLastHScale != w.mHScale
+                    || w.mLastVScale != w.mVScale
+                    || mLastHidden) {
+                displayed = true;
+                mLastAlpha = mShownAlpha;
+                mLastLayer = mAnimLayer;
+                mLastDsDx = mDsDx;
+                mLastDtDx = mDtDx;
+                mLastDsDy = mDsDy;
+                mLastDtDy = mDtDy;
+                w.mLastHScale = w.mHScale;
+                w.mLastVScale = w.mVScale;
+                if (WindowManagerService.SHOW_TRANSACTIONS) WindowManagerService.logSurface(w,
+                        "alpha=" + mShownAlpha + " layer=" + mAnimLayer
+                        + " matrix=[" + (mDsDx*w.mHScale)
+                        + "," + (mDtDx*w.mVScale)
+                        + "][" + (mDsDy*w.mHScale)
+                        + "," + (mDtDy*w.mVScale) + "]", null);
+                if (mSurfaceControl != null) {
+                    try {
+                        mSurfaceAlpha = mShownAlpha;
+                        mSurfaceControl.setAlpha(mShownAlpha);
+                        mSurfaceLayer = mAnimLayer;
+                        //it's bad to maintan, but mAnimLayer is changed many place and 
+                        //hard to ensure will not be change other place in future
+                        mSurfaceControl.setLayer(mAnimLayer);
+                        mSurfaceControl.setMatrix(
+                            mDsDx*w.mHScale, mDtDx*w.mVScale,
+                            mDsDy*w.mHScale, mDtDy*w.mVScale);
+                        if (mLastHidden && mDrawState == HAS_DRAWN) {
+                            if (WindowManagerService.SHOW_TRANSACTIONS) WindowManagerService.logSurface(w,
+                                    "SHOW (performLayout)", null);
+                            if (WindowManagerService.DEBUG_VISIBILITY) Slog.v(TAG, "Showing " + w
+                                    + " during relayout");
+                            if (showSurfaceRobustlyLocked()) {
+                                mLastHidden = false;
+                                if (mIsWallpaper) {
+                                    mService.dispatchWallpaperVisibility(w, true);
+                                }
+                            } else {
+                                w.mOrientationChanging = false;
+                            }
+                        }
+                        if (mSurfaceControl != null) {
+                            w.mToken.hasVisible = true;
+                        }
+                    } catch (RuntimeException e) {
+                        Slog.w(TAG, "Error updating surface in " + w, e);
+                        if (!recoveringMemory) {
+                            mService.reclaimSomeSurfaceMemoryLocked(this, "update", true);
+                        }
+                    }
+                }
+            } else {
             if (DEBUG_ANIM && isAnimating()) {
                 Slog.v(TAG, "prepareSurface: No changes in animation for " + this);
             }
             displayed = true;
+            }
         }
 
         if (displayed) {

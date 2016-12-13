@@ -831,6 +831,14 @@ public class WindowManagerService extends IWindowManager.Stub
     // For example, when this flag is true, there will be no wallpaper service.
     final boolean mOnlyCore;
 
+    public float mScaleThumbXOffsetS;
+    public float mScaleThumbYOffsetS;
+    public float mScaleThumbScaleS;
+    int mSreenNaturalHeight;
+    int mSreenNaturalWidth;
+
+    boolean mSystemReady;
+
     // List of clients without a transtiton animation that we notify once we are done transitioning
     // since they won't be notified through the app window animator.
     private final List<IBinder> mNoAnimationNotifyOnTransitionFinished = new ArrayList<>();
@@ -885,7 +893,7 @@ public class WindowManagerService extends IWindowManager.Stub
             public void run() {
                 WindowManagerPolicyThread.set(Thread.currentThread(), Looper.myLooper());
 
-                mPolicy.init(mContext, WindowManagerService.this, WindowManagerService.this);
+                mPolicy.init(mContext, WindowManagerService.this, WindowManagerService.this, ThumbModeHelper.getInstance());
             }
         }, 0);
     }
@@ -984,6 +992,8 @@ public class WindowManagerService extends IWindowManager.Stub
                 com.android.internal.R.bool.config_allowTheaterModeWakeFromWindowLayout);
 
         LocalServices.addService(WindowManagerInternal.class, new LocalService());
+
+        ThumbModeHelper.init(mContext, this);
         initPolicy();
 
         // Add ourself to the Watchdog monitors.
@@ -2972,7 +2982,7 @@ public class WindowManagerService extends IWindowManager.Stub
                     w.mGivenVisibleInsets.set(visibleInsets);
                     w.mGivenTouchableRegion.set(touchableRegion);
                     w.mTouchableInsets = touchableInsets;
-                    if (w.mGlobalScale != 1) {
+                    if (w.mGlobalScale != 1 && !ThumbModeHelper.getInstance().isSysInThumbMode()) {
                         w.mGivenContentInsets.scale(w.mGlobalScale);
                         w.mGivenVisibleInsets.scale(w.mGlobalScale);
                         w.mGivenTouchableRegion.scale(w.mGlobalScale);
@@ -5604,7 +5614,8 @@ public class WindowManagerService extends IWindowManager.Stub
     @Override
     public float getCurrentAnimatorScale() {
         synchronized(mWindowMap) {
-            return mAnimationsDisabled ? 0 : mAnimatorDurationScaleSetting;
+            return (mAnimationsDisabled
+                        && ThumbModeHelper.getInstance().isSysDoneToReturnNormalModeS()) ? 0 : mAnimatorDurationScaleSetting;
         }
     }
 
@@ -6119,6 +6130,9 @@ public class WindowManagerService extends IWindowManager.Stub
         }
     }
 
+    private int mThumbnailWidthFullScreen = -1;
+    private int mThumbnailHeightFUllScreen = -1;
+
     /**
      * Takes a snapshot of the screen.  In landscape mode this grabs the whole screen.
      * In portrait mode, it grabs the upper region of the screen based on the vertical dimension
@@ -6187,6 +6201,7 @@ public class WindowManagerService extends IWindowManager.Stub
         Bitmap bm = null;
 
         int maxLayer = 0;
+        int statusBarHeight = 0;
         final Rect frame = new Rect();
         final Rect stackBounds = new Rect();
 
@@ -6210,6 +6225,8 @@ public class WindowManagerService extends IWindowManager.Stub
 
         final int aboveAppLayer = (mPolicy.windowTypeToLayerLw(TYPE_APPLICATION) + 1)
                 * TYPE_LAYER_MULTIPLIER + TYPE_LAYER_OFFSET;
+
+        boolean isFullScreen = false;
 
         while (true) {
             if (retryCount++ > 0) {
@@ -6238,7 +6255,7 @@ public class WindowManagerService extends IWindowManager.Stub
                         if (!appIsImTarget) {
                             continue;
                         }
-                    } else if (ws.mIsWallpaper) {
+                    } else if (ws.mIsWallpaper || ws.mIsFakeWallpaper) {
                         if (appWin == null) {
                             // We have not ran across the target window yet, so it is probably
                             // behind the wallpaper. This can happen when the keyguard is up and
@@ -6285,6 +6302,11 @@ public class WindowManagerService extends IWindowManager.Stub
                         }
                     }
 
+                    if ((ws.mAttrs.flags & WindowManager.LayoutParams.FLAG_FULLSCREEN) != 0 ||
+                            (ws.mSystemUiVisibility & View.SYSTEM_UI_FLAG_FULLSCREEN) != 0) {
+                        isFullScreen = true;
+                    }
+
                     if (ws.mAppToken != null && ws.mAppToken.token == appToken &&
                             ws.isDisplayedLw() && winAnim.mSurfaceShown) {
                         screenshotReady = true;
@@ -6314,6 +6336,11 @@ public class WindowManagerService extends IWindowManager.Stub
                     if (DEBUG_SCREENSHOT) Slog.i(TAG, "Screenshot: No image ready for " + appToken
                             + ", " + appWin + " drawState=" + appWin.mWinAnimator.mDrawState);
                     continue;
+                }
+
+                if (!isFullScreen) {
+                    statusBarHeight =
+                            mContext.getResources().getDimensionPixelSize(com.android.internal.R.dimen.status_bar_height);
                 }
 
                 // Screenshot is ready to be taken. Everything from here below will continue
@@ -6347,21 +6374,29 @@ public class WindowManagerService extends IWindowManager.Stub
                     height = frame.height();
                 }
 
-                // Tell surface flinger what part of the image to crop. Take the top
-                // right part of the application, and crop the larger dimension to fit.
-                Rect crop = new Rect(frame);
-                if (width / (float) frame.width() < height / (float) frame.height()) {
-                    int cropWidth = (int)((float)width / (float)height * frame.height());
-                    crop.right = crop.left + cropWidth;
-                } else {
-                    int cropHeight = (int)((float)height / (float)width * frame.width());
-                    crop.bottom = crop.top + cropHeight;
-                }
+                Rect crop = ThumbModeHelper.getInstance().getAppScreenRect(dw, dh, statusBarHeight);
+
+//                // Constrain frame to the screen size.
+//                frame.intersect(0, 0, dw, dh);
+
+//                // Tell surface flinger what part of the image to crop. Take the top
+//                // right part of the application, and crop the larger dimension to fit.
+//                Rect crop = new Rect(frame);
+//                if (width / (float) frame.width() < height / (float) frame.height()) {
+//                    int cropWidth = (int)((float)width / (float)height * frame.height());
+//                    crop.right = crop.left + cropWidth;
+//                } else {
+//                    int cropHeight = (int)((float)height / (float)width * frame.width());
+//                    crop.bottom = crop.top + cropHeight;
+//                }
 
                 // The screenshot API does not apply the current screen rotation.
                 int rot = getDefaultDisplayContentLocked().getDisplay().getRotation();
 
                 if (rot == Surface.ROTATION_90 || rot == Surface.ROTATION_270) {
+                    int tmp = width;
+                    width = height;
+                    height = tmp;
                     rot = (rot == Surface.ROTATION_90) ? Surface.ROTATION_270 : Surface.ROTATION_90;
                 }
 
@@ -6593,6 +6628,8 @@ public class WindowManagerService extends IWindowManager.Stub
             return false;
         }
 
+        resetWindowState();
+
         if (DEBUG_ORIENTATION) {
             Slog.v(TAG,
                 "Rotation changed to " + rotation + (altOrientation ? " (alt)" : "")
@@ -6603,6 +6640,7 @@ public class WindowManagerService extends IWindowManager.Stub
         mRotation = rotation;
         mAltOrientation = altOrientation;
         mPolicy.setRotationLw(mRotation);
+        ThumbModeHelper.getInstance().setRotation(mRotation);
 
         mWindowsFreezingScreen = WINDOWS_FREEZING_SCREENS_ACTIVE;
         mH.removeMessages(H.WINDOW_FREEZE_TIMEOUT);
@@ -7493,7 +7531,7 @@ public class WindowManagerService extends IWindowManager.Stub
     // -------------------------------------------------------------
 
     IBinder prepareDragSurface(IWindow window, SurfaceSession session,
-            int flags, int width, int height, Surface outSurface) {
+            int flags, int width, int height, Surface outSurface, float delX, float delY, int showAnimDelay) {
         if (DEBUG_DRAG) {
             Slog.d(TAG, "prepare drag surface: w=" + width + " h=" + height
                     + " flags=" + Integer.toHexString(flags) + " win=" + window
@@ -7519,7 +7557,7 @@ public class WindowManagerService extends IWindowManager.Stub
                         outSurface.copyFrom(surface);
                         final IBinder winBinder = window.asBinder();
                         token = new Binder();
-                        mDragState = new DragState(this, token, surface, flags, winBinder);
+                        mDragState = new DragState(this, token, surface, width, height, flags, winBinder, delX, delY, showAnimDelay);
                         token = mDragState.mToken = new Binder();
 
                         // 5 second timeout for this window to actually begin the drag
@@ -7674,6 +7712,8 @@ public class WindowManagerService extends IWindowManager.Stub
             mActivityManager.updateConfiguration(null);
         } catch (RemoteException e) {
         }
+
+        initThumbConfigs();
     }
 
     private void displayReady(int displayId) {
@@ -7701,8 +7741,28 @@ public class WindowManagerService extends IWindowManager.Stub
         }
     }
 
+    private void initThumbConfigs(){
+        final DisplayContent defaultDisplay = getDefaultDisplayContentLocked();
+        if(defaultDisplay != null){
+            final DisplayInfo defaultInfo = defaultDisplay.getDisplayInfo();
+            mSreenNaturalWidth = defaultInfo.getNaturalWidth();
+            mSreenNaturalHeight = defaultInfo.getNaturalHeight();
+            mScaleThumbScaleS = ThumbModeHelper.getInstance().getSidebarScale();
+            mScaleThumbXOffsetS = mSreenNaturalWidth - mSreenNaturalWidth * ThumbModeHelper.getInstance().getSidebarScaleSmall();
+            mScaleThumbYOffsetS = mSreenNaturalHeight - mSreenNaturalHeight * ThumbModeHelper.getInstance().getSidebarScaleSmall();
+            mPolicy.setThumbOffset((int)mScaleThumbYOffsetS, (int)mScaleThumbXOffsetS, mSreenNaturalWidth, mSreenNaturalHeight);
+            ThumbModeHelper.getInstance().setThumbOffset((int)mScaleThumbYOffsetS, (int)mScaleThumbXOffsetS, mSreenNaturalWidth, mSreenNaturalHeight);
+            if(ThumbModeHelper.DEBUG){
+                Slog.d(ThumbModeHelper.TAG, "init thumb configs, "  +
+                        ", ScaleS " + mScaleThumbScaleS + ",  "  +
+                        " ScaleXOffsetS " + mScaleThumbXOffsetS + ", ScaleYOffsetS " + mScaleThumbYOffsetS);
+            }
+        }
+    }
+
     public void systemReady() {
         mPolicy.systemReady();
+        mSystemReady = true;
     }
 
     // -------------------------------------------------------------
@@ -7753,6 +7813,7 @@ public class WindowManagerService extends IWindowManager.Stub
         public static final int CHECK_IF_BOOT_ANIMATION_FINISHED = 37;
         public static final int RESET_ANR_MESSAGE = 38;
         public static final int WALLPAPER_DRAW_PENDING_TIMEOUT = 39;
+        public static final int DRAG_STATE_RESET = 50;
 
         @Override
         public void handleMessage(Message msg) {
@@ -8114,9 +8175,11 @@ public class WindowManagerService extends IWindowManager.Stub
                     }
                     synchronized (mWindowMap) {
                         // !!! TODO: ANR the app that has failed to start the drag in time
+                        removeMessages(DRAG_STATE_RESET);
                         if (mDragState != null) {
                             mDragState.unregister();
                             mInputMonitor.updateInputWindowsLw(true /*force*/);
+                            mDragState.removeAnimRun();
                             mDragState.reset();
                             mDragState = null;
                         }
@@ -8134,6 +8197,18 @@ public class WindowManagerService extends IWindowManager.Stub
                         if (mDragState != null) {
                             mDragState.mDragResult = false;
                             mDragState.endDragLw();
+                        }
+                    }
+                    break;
+                }
+                case DRAG_STATE_RESET: {
+                    if (DEBUG_DRAG) {
+                        Slog.w(TAG, "Time to reset drag state");
+                    }
+                    synchronized (mWindowMap) {
+                        // !!! TODO: ANR the drag-receiving app
+                        if (mDragState != null) {
+                            mDragState.handleReset();
                         }
                     }
                     break;
@@ -8791,7 +8866,8 @@ public class WindowManagerService extends IWindowManager.Stub
                 numRemoved++;
                 continue;
             } else if (lastBelow == i-1) {
-                if (w.mAttrs.type == TYPE_WALLPAPER) {
+                if (w.mAttrs.type == TYPE_WALLPAPER 
+                        || (w.mAttachedWindow != null && w.mAttachedWindow.mAttrs.type == TYPE_WALLPAPER)) {
                     lastBelow = i;
                 }
             }
@@ -9840,6 +9916,16 @@ public class WindowManagerService extends IWindowManager.Stub
         }
     }
 
+    public void resetWindowState(){
+        if(ThumbModeHelper.getInstance().isSysInThumbMode()){
+            ThumbModeHelper.getInstance().resetWindowState();
+        }
+    }
+
+    public int getThumbState(){
+        return ThumbModeHelper.getInstance().getThumbStates();
+    }
+
     // "Something has changed!  Let's make it correct now."
     private final void performLayoutAndPlaceSurfacesLockedInner(boolean recoveringMemory) {
         if (DEBUG_WINDOW_TRACE) {
@@ -9886,6 +9972,9 @@ public class WindowManagerService extends IWindowManager.Stub
         final DisplayInfo defaultInfo = defaultDisplay.getDisplayInfo();
         final int defaultDw = defaultInfo.logicalWidth;
         final int defaultDh = defaultInfo.logicalHeight;
+
+        final int appFullWidth = defaultInfo.appWidth;
+        final int appFullHeight = defaultInfo.appHeight;
 
         if (SHOW_LIGHT_TRANSACTIONS) Slog.i(TAG,
                 ">>> OPEN TRANSACTION performLayoutAndPlaceSurfaces");
@@ -9977,7 +10066,9 @@ public class WindowManagerService extends IWindowManager.Stub
                                 mPolicy.applyPostLayoutPolicyLw(w, w.mAttrs, w.mAttachedWindow);
                             }
                         }
-                        displayContent.pendingLayoutChanges |= mPolicy.finishPostLayoutPolicyLw();
+                        int policyLayoutChanges = mPolicy.finishPostLayoutPolicyLw();
+                        policyLayoutChanges &= ~WindowManagerPolicy.FINISH_LAYOUT_TOP_FULLSCREEN;
+                        displayContent.pendingLayoutChanges |= policyLayoutChanges;
                         if (DEBUG_LAYOUT_REPEATS) debugLayoutRepeats(
                             "after finishPostLayoutPolicyLw", displayContent.pendingLayoutChanges);
                     }
@@ -9989,6 +10080,8 @@ public class WindowManagerService extends IWindowManager.Stub
 
                 // Only used if default window
                 final boolean someoneLosingFocus = !mLosingFocus.isEmpty();
+                int performThumbState = ThumbModeHelper.getInstance().mActionState;
+                boolean animStateApplied = false;
 
                 final int N = windows.size();
                 for (i=N-1; i>=0; i--) {
@@ -10022,30 +10115,80 @@ public class WindowManagerService extends IWindowManager.Stub
 
                     // If the window has moved due to its containing content frame changing, then
                     // notify the listeners and optionally animate it.
+                    boolean doAnim = w.adjustThumbLayout();
                     if (w.hasMoved()) {
-                        // Frame has moved, containing content frame has also moved, and we're not
-                        // currently animating... let's do something.
-                        final int left = w.mFrame.left;
-                        final int top = w.mFrame.top;
-                        if ((w.mAttrs.privateFlags & PRIVATE_FLAG_NO_MOVE_ANIMATION) == 0) {
-                            Animation a = AnimationUtils.loadAnimation(mContext,
-                                    com.android.internal.R.anim.window_move_from_decor);
-                            winAnimator.setAnimation(a);
+                        Animation animTrans;
+                        if (ThumbModeHelper.getInstance().needSetToThumbAnim() && doAnim) {
+                            if (ThumbModeHelper.getInstance().needAnimatedMove()) {
+                                 if (ThumbModeHelper.getInstance()
+                                        .getPendingThumbAction() == WindowManagerPolicy.ThumbModeFuncs.ACTION_FROM_TOP_LEFT_PULL_DOWN_SIDEBAR
+                                        || ThumbModeHelper.getInstance()
+                                        .getPendingThumbAction() == WindowManagerPolicy.ThumbModeFuncs.ACTION_FROM_TOP_RIGHT_PULL_DOWN_SIDEBAR) {
+
+                                    if((w.mWidthBase >= appFullWidth && w.mHeightBase >= appFullHeight)
+                                            || (w.mTopBase == 0 && w.mLeftBase == 0)){
+                                        Animation animScale = (ThumbModeHelper.getInstance()
+                                                    .getPendingThumbAction() == WindowManagerPolicy.ThumbModeFuncs.ACTION_FROM_TOP_LEFT_PULL_DOWN_SIDEBAR)?
+                                                ThumbModeHelper.getInstance().getThumbAnimation(ThumbModeHelper.THUMB_ANIM_TO_LEFT_BOTTOM) :
+                                                ThumbModeHelper.getInstance().getThumbAnimation(ThumbModeHelper.THUMB_ANIM_TO_RIGHT_BOTTOM);
+                                        winAnimator.setAnimation(animScale);
+                                        animStateApplied = true;
+                                    }else{
+                                        Animation animScale = (ThumbModeHelper.getInstance()
+                                                        .getPendingThumbAction() == WindowManagerPolicy.ThumbModeFuncs.ACTION_FROM_TOP_LEFT_PULL_DOWN_SIDEBAR )?
+                                                ThumbModeHelper.getInstance().getThumbAnimation(ThumbModeHelper.THUMB_ANIM_TO_LEFT_BOTTOM_NOTFULL) :
+                                                ThumbModeHelper.getInstance().getThumbAnimation(ThumbModeHelper.THUMB_ANIM_TO_RIGHT_BOTTOM_NOTFULL);
+                                        winAnimator.setAnimation(animScale);
+                                        animStateApplied = true;
+                                    }
+                                }
+                            }
+                        } else if (ThumbModeHelper.getInstance().needSetToNormalAnim() && doAnim) {
+                            if (ThumbModeHelper.getInstance().needAnimatedMove()) {
+                                if (w.mStateThumbMode == ThumbModeHelper.THUMB_WINDOW_STATE_RIGHTBOTTOM_SIDEBAR
+                                        || w.mStateThumbMode == ThumbModeHelper.THUMB_WINDOW_STATE_LEFTBOTTOM_SIDEBAR) {
+                                        if((w.mWidthBase >= appFullWidth && w.mHeightBase >= appFullHeight)
+                                                || (w.mTopBase == 0 && w.mLeftBase == 0)){
+                                            Animation animScale = (w.mStateThumbMode == ThumbModeHelper.THUMB_WINDOW_STATE_LEFTBOTTOM_SIDEBAR) ?
+                                                    ThumbModeHelper.getInstance().getThumbAnimation(ThumbModeHelper.THUMB_ANIM_RESET_LEFT_BOTTOM_S) :
+                                                    ThumbModeHelper.getInstance().getThumbAnimation(ThumbModeHelper.THUMB_ANIM_RESET_RIGHT_BOTTOM_S);
+                                            winAnimator.setAnimation(animScale);
+                                            animStateApplied = true;
+                                        }else{
+                                            Animation animScale = (w.mStateThumbMode == ThumbModeHelper.THUMB_WINDOW_STATE_LEFTBOTTOM_SIDEBAR) ?
+                                                    ThumbModeHelper.getInstance().getThumbAnimation(ThumbModeHelper.THUMB_ANIM_RESET_LEFT_BOTTOM_NOTFULL_S) :
+                                                    ThumbModeHelper.getInstance().getThumbAnimation(ThumbModeHelper.THUMB_ANIM_RESET_RIGHT_BOTTOM_NOTFULL_S);
+                                            winAnimator.setAnimation(animScale);
+                                            animStateApplied = true;
+                                        }
+                                }
+                            }
+                        } else {
+                            if ((w.mAttrs.privateFlags & PRIVATE_FLAG_NO_MOVE_ANIMATION) == 0) {
+                                animTrans = AnimationUtils.loadAnimation(mContext,
+                                        com.android.internal.R.anim.window_move_from_decor);
+                                winAnimator.setAnimation(animTrans);
+                                animStateApplied = true;
+                            }
+                        }
+                        if(animStateApplied){
+                            final int left = w.mFrame.left;
+                            final int top = w.mFrame.top;
                             winAnimator.mAnimDw = w.mLastFrame.left - left;
                             winAnimator.mAnimDh = w.mLastFrame.top - top;
                             winAnimator.mAnimateMove = true;
                             winAnimator.mAnimatingMove = true;
-                        }
 
-                        //TODO (multidisplay): Accessibility supported only for the default display.
-                        if (mAccessibilityController != null
-                                && displayId == Display.DEFAULT_DISPLAY) {
-                            mAccessibilityController.onSomeWindowResizedOrMovedLocked();
-                        }
+                            //TODO (multidisplay): Accessibility supported only for the default display.
+                            if (mAccessibilityController != null
+                                    && displayId == Display.DEFAULT_DISPLAY) {
+                                mAccessibilityController.onSomeWindowResizedOrMovedLocked();
+                            }
 
-                        try {
-                            w.mClient.moved(left, top);
-                        } catch (RemoteException e) {
+                            try {
+                                w.mClient.moved(left, top);
+                            } catch (RemoteException e) {
+                            }
                         }
                     }
 
@@ -10141,6 +10284,12 @@ public class WindowManagerService extends IWindowManager.Stub
                     }
 
                     updateResizingWindows(w);
+                }
+
+                ThumbModeHelper.getInstance().updatePerformThumbState(performThumbState);
+                if(animStateApplied){
+                    ThumbModeHelper.getInstance().disableAnimatedMove();
+                    animStateApplied = false;
                 }
 
                 mDisplayManagerInternal.setDisplayProperties(displayId,
@@ -10471,6 +10620,10 @@ public class WindowManagerService extends IWindowManager.Stub
         }
     }
 
+    public boolean isAnimating(){
+        return mAnimator.mAnimating;
+    }
+
     void requestTraversalLocked() {
         if (!mTraversalScheduled) {
             mTraversalScheduled = true;
@@ -10707,6 +10860,7 @@ public class WindowManagerService extends IWindowManager.Stub
                 mInputMonitor.setInputFocusLw(mCurrentFocus, updateInputWindows);
             }
 
+            ThumbModeHelper.getInstance().updateWindowStateWhenFocusChanged(oldFocus, mCurrentFocus);
             Trace.traceEnd(Trace.TRACE_TAG_WINDOW_MANAGER);
             return true;
         }
@@ -12022,4 +12176,17 @@ public class WindowManagerService extends IWindowManager.Stub
             }
         }
     }
+
+    void updateThumbGestureDetectListener(boolean enable){
+        mPolicy.updateThumbGestureDetectListener(enable);
+    }
+
+    void dispatchThumbStateToPolicy(int thumbState){
+        mPolicy.dispatchThumbState(thumbState);
+    }
+
+    void dispatchThumbInterSizeToPolicy(float size){
+        mPolicy.dispatchThumbInterSize(size);
+    }
+
 }

@@ -2717,6 +2717,7 @@ class DatabaseHelper extends SQLiteOpenHelper {
              *
              * See: SettingsProvider.UpgradeController#onUpgradeLocked
              */
+            loadIntegerSetting(stmt, Settings.Global.SIDE_BAR_MODE, R.integer.def_side_bar_mode);
         } finally {
             if (stmt != null) stmt.close();
         }

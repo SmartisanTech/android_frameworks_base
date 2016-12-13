@@ -54,6 +54,7 @@ static struct {
     jfieldID ownerUid;
     jfieldID inputFeatures;
     jfieldID displayId;
+    jfieldID inThumbMode;
 } gInputWindowHandleClassInfo;
 
 static Mutex gHandleMutex;
@@ -158,6 +159,8 @@ bool NativeInputWindowHandle::updateInfo() {
             gInputWindowHandleClassInfo.inputFeatures);
     mInfo->displayId = env->GetIntField(obj,
             gInputWindowHandleClassInfo.displayId);
+    mInfo->inThumbMode = env->GetBooleanField(obj,
+            gInputWindowHandleClassInfo.inThumbMode);
 
     env->DeleteLocalRef(obj);
     return true;
@@ -302,6 +305,9 @@ int register_android_server_InputWindowHandle(JNIEnv* env) {
 
     GET_FIELD_ID(gInputWindowHandleClassInfo.displayId, clazz,
             "displayId", "I");
+
+    GET_FIELD_ID(gInputWindowHandleClassInfo.inThumbMode, clazz,
+            "inThumbMode", "Z");
     return 0;
 }
 

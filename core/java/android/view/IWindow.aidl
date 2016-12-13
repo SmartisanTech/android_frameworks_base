@@ -93,6 +93,8 @@ oneway interface IWindow {
      */
     void onAnimationStopped();
 
+    void dispatchThumbModeStates(int states);
+
     /**
      * Called for non-application windows when the enter animation has completed.
      */

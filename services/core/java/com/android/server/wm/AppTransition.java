@@ -238,6 +238,10 @@ public class AppTransition implements Dump {
         return mNextAppTransition == TRANSIT_NONE;
     }
 
+    boolean isAppTransitionTypeNone() {
+        return mNextAppTransitionType == NEXT_TRANSIT_TYPE_NONE;
+    }
+
     boolean isTransitionEqual(int transit) {
         return mNextAppTransition == transit;
     }

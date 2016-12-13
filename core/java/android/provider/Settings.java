@@ -8091,6 +8091,12 @@ public final class Settings {
          * @hide
          */
         public static final String CONTACT_METADATA_SYNC = "contact_metadata_sync";
+
+        /**
+         * @hide
+         */
+        public static final String SIDE_BAR_MODE = "side_bar_mode";
+
     }
 
     /**

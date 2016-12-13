@@ -17,6 +17,7 @@
 package android.content;
 
 import android.content.Context;
+import android.content.IClipboardListener;
 import android.os.Message;
 import android.os.RemoteException;
 import android.os.Handler;
@@ -24,6 +25,7 @@ import android.os.IBinder;
 import android.os.ServiceManager;
 
 import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Interface to the clipboard service, for placing and retrieving text in
@@ -116,13 +118,7 @@ public class ClipboardManager extends android.text.ClipboardManager {
      * @param clip The clipped data item to set.
      */
     public void setPrimaryClip(ClipData clip) {
-        try {
-            if (clip != null) {
-                clip.prepareToLeaveProcess();
-            }
-            getService().setPrimaryClip(clip, mContext.getOpPackageName());
-        } catch (RemoteException e) {
-        }
+        setPrimaryClip(clip, true);
     }
 
     /**
@@ -230,6 +226,64 @@ public class ClipboardManager extends android.text.ClipboardManager {
 
         for (int i=0; i<listeners.length; i++) {
             ((OnPrimaryClipChangedListener)listeners[i]).onPrimaryClipChanged();
+        }
+    }
+
+    /**
+     * @hide
+     * @return
+     */
+    public List<CopyHistoryItem> getCopyHistory(){
+        try {
+            return getService().getCopyHistory();
+        } catch (RemoteException e) {
+            return null;
+        }
+    }
+
+    /**
+     * @hide
+     */
+    public void clearCopyHistory(){
+        try {
+            getService().clearCopyHistory();
+        } catch (RemoteException e) {
+            // NA
+        }
+    }
+
+    /**
+     * @hide
+     */
+    public void delete(CopyHistoryItem item) {
+        try {
+            getService().delete(item);
+        } catch (RemoteException e) {
+            // NA
+        }
+    }
+
+    /**
+     * @hide
+     */
+    public void registerListener(IClipboardListener listener){
+        try {
+            getService().registerListener(listener);
+        } catch (RemoteException e) {
+            // NA
+        }
+    }
+
+    /**
+     * @hide
+     */
+    public void setPrimaryClip(ClipData clip, boolean inHistory) {
+        try {
+            if (clip != null) {
+                clip.prepareToLeaveProcess();
+            }
+            getService().setPrimaryClip(clip, inHistory, mContext.getOpPackageName());
+        } catch (RemoteException e) {
         }
     }
 }

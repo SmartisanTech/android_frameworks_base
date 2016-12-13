@@ -494,7 +494,8 @@ public class TaskStack {
             mAnimationBackgroundAnimator = winAnimator;
             animLayer = mService.adjustAnimationBackground(winAnimator);
             mAnimationBackgroundSurface.show(animLayer - WindowManagerService.LAYER_OFFSET_DIM,
-                    ((color >> 24) & 0xff) / 255f, 0);
+                    ThumbModeHelper.getInstance().isSysInThumbMode() ?
+                            0.0f : (((color >> 24) & 0xff) / 255f), 0);
         }
     }
 

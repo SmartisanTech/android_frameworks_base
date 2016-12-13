@@ -12181,8 +12181,10 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      * Determines whether the given point, in local coordinates is inside the view.
      */
     /*package*/ final boolean pointInView(float localX, float localY) {
-        return localX >= 0 && localX < (mRight - mLeft)
-                && localY >= 0 && localY < (mBottom - mTop);
+        final int lX = (int)localX;
+        final int lY = (int)localY;
+        return lX >= 0 && lX <= (mRight - mLeft)
+                && lY >= 0 && lY <= (mBottom - mTop);
     }
 
     /**
@@ -19588,6 +19590,22 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      */
     public final boolean startDrag(ClipData data, DragShadowBuilder shadowBuilder,
             Object myLocalState, int flags) {
+        return startDrag(data, shadowBuilder, myLocalState, flags, 0, 0);
+    }
+
+    /**
+     * @hide
+     */
+    public final boolean startDrag(ClipData data, DragShadowBuilder shadowBuilder,
+            Object myLocalState, int flags, float delX, float delY) {
+        return startDrag(data, shadowBuilder, myLocalState, flags, delX, delY, 0);
+    }
+
+    /**
+     * @hide
+     */
+    public final boolean startDrag(ClipData data, DragShadowBuilder shadowBuilder,
+            Object myLocalState, int flags, float delX, float delY, int showAnimDelay) {
         if (ViewDebug.DEBUG_DRAG) {
             Log.d(VIEW_LOG_TAG, "startDrag: data=" + data + " flags=" + flags);
         }
@@ -19609,7 +19627,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
         Surface surface = new Surface();
         try {
             IBinder token = mAttachInfo.mSession.prepareDrag(mAttachInfo.mWindow,
-                    flags, shadowSize.x, shadowSize.y, surface);
+                    flags, shadowSize.x, shadowSize.y, surface, delX, delY, showAnimDelay);
             if (ViewDebug.DEBUG_DRAG) Log.d(VIEW_LOG_TAG, "prepareDrag returned token=" + token
                     + " surface=" + surface);
             if (token != null) {
@@ -19701,7 +19719,14 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
     }
 
     boolean canAcceptDrag() {
-        return (mPrivateFlags2 & PFLAG2_DRAG_CAN_ACCEPT) != 0;
+        return mAlwaysCanAcceptDrag || (mPrivateFlags2 & PFLAG2_DRAG_CAN_ACCEPT) != 0;
+    }
+
+    private boolean mAlwaysCanAcceptDrag = false;
+
+    /** @hide */
+    public void setAlwaysCanAcceptDrag(boolean can){
+        mAlwaysCanAcceptDrag = can;
     }
 
     /**

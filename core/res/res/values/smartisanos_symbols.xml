@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!-- added for smartisanos. we should put our symbols here -->
+<resources>
+
+  <java-symbol type="dimen" name="sidebar_width" />
+
+  <java-symbol type="drawable" name="sidebar_background" />
+  <java-symbol type="dimen" name="drag_image_size"/>
+
+  <!-- Status Bar -->
+  <java-symbol type="anim" name="dock_fade_enter" />
+  <java-symbol type="anim" name="dock_fade_exit" />
+
+  <!-- Thumb Mode -->
+  <java-symbol type="style" name="Animation.Thumbwallpaper" />
+  <java-symbol type="drawable" name="shadow_thumb_mode"/>
+</resources>

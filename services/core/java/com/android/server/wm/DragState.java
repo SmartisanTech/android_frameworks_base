@@ -16,13 +16,17 @@
 
 package com.android.server.wm;
 
+import com.android.server.UiThread;
 import com.android.server.input.InputApplicationHandle;
 import com.android.server.input.InputWindowHandle;
 import com.android.server.wm.WindowManagerService.DragInputEventReceiver;
 import com.android.server.wm.WindowManagerService.H;
 
+import android.animation.Animator;
+import android.animation.ValueAnimator;
 import android.content.ClipData;
 import android.content.ClipDescription;
+import android.graphics.Matrix;
 import android.graphics.Point;
 import android.graphics.Rect;
 import android.graphics.Region;
@@ -36,7 +40,10 @@ import android.view.DragEvent;
 import android.view.InputChannel;
 import android.view.SurfaceControl;
 import android.view.View;
+import android.view.ViewRootImpl;
 import android.view.WindowManager;
+import android.view.animation.DecelerateInterpolator;
+import android.view.animation.OvershootInterpolator;
 
 import java.util.ArrayList;
 
@@ -62,18 +69,48 @@ class DragState {
     ArrayList<WindowState> mNotifiedWindows;
     boolean mDragInProgress;
     Display mDisplay;
-
     private final Region mTmpRegion = new Region();
+
+    float mDelX, mDelY;
+    int mShowAnimDelay;
+
     private final Rect mTmpRect = new Rect();
 
     DragState(WindowManagerService service, IBinder token, SurfaceControl surface,
-            int flags, IBinder localWin) {
+            int w, int h, int flags, IBinder localWin, float delX, float delY, int showAnimDelay) {
         mService = service;
         mToken = token;
         mSurfaceControl = surface;
         mFlags = flags;
         mLocalWin = localWin;
         mNotifiedWindows = new ArrayList<WindowState>();
+        mDelX = delX;
+        mDelY = delY;
+        mShowAnimDelay = showAnimDelay;
+        mWidth = w;
+        mHeight = h;
+    }
+
+    void dismissAndReset(){
+        UiThread.getHandler().removeCallbacks(mOnDragAnimRun);
+        UiThread.getHandler().removeCallbacks(mOnDismissAnimRun);
+        UiThread.getHandler().removeCallbacks(mOnDismissAnimAlphaRun);
+        if(!UiThread.getHandler().hasCallbacks(mOnDragAnimRun)) {
+            if (mDragResult) {
+                UiThread.getHandler().post(mOnDismissAnimRun);
+            } else {
+                UiThread.getHandler().post(mOnDismissAnimAlphaRun);
+            }
+        }
+        mService.mH.removeMessages(H.DRAG_STATE_RESET);
+        Message msg = mService.mH.obtainMessage(H.DRAG_STATE_RESET);
+        mService.mH.sendMessageDelayed(msg, 300);
+    }
+
+    void removeAnimRun(){
+        UiThread.getHandler().removeCallbacks(mOnDragAnimRun);
+        UiThread.getHandler().removeCallbacks(mOnDismissAnimRun);
+        UiThread.getHandler().removeCallbacks(mOnDismissAnimAlphaRun);
     }
 
     void reset() {
@@ -86,6 +123,9 @@ class DragState {
         mToken = null;
         mData = null;
         mThumbOffsetX = mThumbOffsetY = 0;
+        mWidth = mHeight = 0;
+        mTouchX = mTouchY = 0;
+        mOffsetMtrX = mOffsetMtrY = 0;
         mNotifiedWindows = null;
     }
 
@@ -128,6 +168,7 @@ class DragState {
             mDragWindowHandle.ownerUid = Process.myUid();
             mDragWindowHandle.inputFeatures = 0;
             mDragWindowHandle.scaleFactor = 1.0f;
+            mDragWindowHandle.inThumbMode = false;
 
             // The drag window cannot receive new touches.
             mDragWindowHandle.touchableRegion.setEmpty();
@@ -180,7 +221,9 @@ class DragState {
 
     /* call out to each visible window/session informing it about the drag
      */
-    void broadcastDragStartedLw(final float touchX, final float touchY) {
+    void broadcastDragStartedLw(float touchX, float touchY) {
+        touchX += mDelX;
+        touchY += mDelY;
         // Cache a base-class instance of the clip metadata so that parceling
         // works correctly in calling out to the apps.
         mDataDescription = (mData != null) ? mData.getDescription() : null;
@@ -210,6 +253,8 @@ class DragState {
      */
     private void sendDragStartedLw(WindowState newWin, float touchX, float touchY,
             ClipDescription desc) {
+        touchX += mDelX;
+        touchY += mDelY;
         // Don't actually send the event if the drag is supposed to be pinned
         // to the originating window but 'newWin' is not that window.
         if ((mFlags & View.DRAG_FLAG_GLOBAL) == 0) {
@@ -267,7 +312,11 @@ class DragState {
                 0, 0, null, null, null, mDragResult);
         for (WindowState ws: mNotifiedWindows) {
             try {
-                ws.mClient.dispatchDragEvent(evt);
+                if (Process.myPid() == ws.mSession.mPid) {
+                    ws.mClient.dispatchDragEvent(DragEvent.obtain(evt));
+                } else {
+                    ws.mClient.dispatchDragEvent(evt);
+                }
             } catch (RemoteException e) {
                 Slog.w(WindowManagerService.TAG, "Unable to drag-end window " + ws);
             }
@@ -285,8 +334,15 @@ class DragState {
         mService.mInputMonitor.updateInputWindowsLw(true /*force*/);
 
         // free our resources and drop all the object references
-        mService.mDragState.reset();
-        mService.mDragState = null;
+        mService.mDragState.dismissAndReset();
+    }
+
+    void handleReset(){
+        if(mService.mDragState != null){
+            mService.mDragState.removeAnimRun();
+            mService.mDragState.reset();
+            mService.mDragState = null;
+        }
     }
 
     void notifyMoveLw(float x, float y) {
@@ -297,15 +353,15 @@ class DragState {
                 WindowManagerService.TAG, ">>> OPEN TRANSACTION notifyMoveLw");
         SurfaceControl.openTransaction();
         try {
-            mSurfaceControl.setPosition(x - mThumbOffsetX, y - mThumbOffsetY);
-            if (WindowManagerService.SHOW_TRANSACTIONS) Slog.i(WindowManagerService.TAG, "  DRAG "
-                    + mSurfaceControl + ": pos=(" +
-                    (int)(x - mThumbOffsetX) + "," + (int)(y - mThumbOffsetY) + ")");
+            setPosition(x, y);
         } finally {
             SurfaceControl.closeTransaction();
             if (WindowManagerService.SHOW_LIGHT_TRANSACTIONS) Slog.i(
                     WindowManagerService.TAG, "<<< CLOSE TRANSACTION notifyMoveLw");
         }
+
+        x += mDelX;
+        y += mDelY;
 
         // Tell the affected window
         WindowState touchedWin = getTouchedWinAtPointLw(x, y);
@@ -356,6 +412,20 @@ class DragState {
     // dispatch the global drag-ended message, 'false' if we need to wait for a
     // result from the recipient.
     boolean notifyDropLw(float x, float y) {
+        if (inWindowBorder(x, y)) {
+            Slog.w(WindowManagerService.TAG,
+                    "touch point is ("
+                            + x
+                            + ","
+                            + y
+                            + "), "
+                            + "too border! ignore it, immediately dispatch the global drag-ended message");
+            return true;
+        }
+
+        setPosition(x, y);
+        x += mDelX;
+        y += mDelY;
         WindowState touchedWin = getTouchedWinAtPointLw(x, y);
         if (touchedWin == null) {
             // "drop" outside a valid window -- no recipient to apply a
@@ -369,6 +439,7 @@ class DragState {
         }
         final int myPid = Process.myPid();
         final IBinder token = touchedWin.mClient.asBinder();
+
         DragEvent evt = obtainDragEvent(touchedWin, DragEvent.ACTION_DROP, x, y,
                 null, null, mData, false);
         try {
@@ -434,15 +505,263 @@ class DragState {
         return touchedWin;
     }
 
-    private static DragEvent obtainDragEvent(WindowState win, int action,
+    private DragEvent obtainDragEvent(WindowState win, int action,
             float x, float y, Object localState,
             ClipDescription description, ClipData data, boolean result) {
-        float winX = x - win.mFrame.left;
-        float winY = y - win.mFrame.top;
-        if (win.mEnforceSizeCompat) {
-            winX *= win.mGlobalScale;
-            winY *= win.mGlobalScale;
+        float winX = x;
+        float winY = y;
+        if(win.isWinInThumbMode()){
+            if((ThumbModeHelper.getInstance().getThumbStates() & ViewRootImpl.BIT_WINDOW_IN_THUMB_MODE_TYPE_L_CORNER_SIDEBAR) != 0){
+                winX = winX / mService.mScaleThumbScaleS;
+                winX = winX - win.mLeftBase;
+                winY = winY - mService.mScaleThumbYOffsetS;
+                winY = winY / mService.mScaleThumbScaleS;
+                winY = winY - win.mTopBase;
+            }else if((ThumbModeHelper.getInstance().getThumbStates() & ViewRootImpl.BIT_WINDOW_IN_THUMB_MODE_TYPE_R_CORNER_SIDEBAR) != 0){
+                winX = (winX - mService.mScaleThumbXOffsetS) / mService.mScaleThumbScaleS;
+                winX = winX - win.mLeftBase;;
+                winY = winY - mService.mScaleThumbYOffsetS;
+                winY = winY / mService.mScaleThumbScaleS;
+                winY = winY - win.mTopBase;
+            }
+        }else{
+            winX = winX - win.mLeftBase;
+            winY = winY - win.mTopBase;
+            if (win.mEnforceSizeCompat) {
+                winX *= win.mGlobalScale;
+                winY *= win.mGlobalScale;
+            }
         }
         return DragEvent.obtain(action, winX, winY, localState, description, data, result);
+    }
+
+    int mWidth, mHeight;
+    private float mTouchX, mTouchY;
+    float mOffsetMtrX, mOffsetMtrY;
+    public static float MAX_SCALE = 1.4f;
+    public static float MIN_SCALE = 0.3f;
+    public static float SCALE_AX_PER = 0.5f;
+    public static float SCALE_AY_PER = 0.5f;
+
+    public void setPosition(float touchX, float touchY) {
+        if(mSurfaceControl != null){
+            mTouchX = touchX;
+            mTouchY = touchY;
+            mSurfaceControl.setPosition(mTouchX - mThumbOffsetX + mOffsetMtrX, mTouchY - mThumbOffsetY + mOffsetMtrY);
+            if (WindowManagerService.SHOW_TRANSACTIONS) Slog.i(WindowManagerService.TAG, "  DRAG "
+                    + mSurfaceControl + ": pos=(" +
+                    (int)(mTouchX - mThumbOffsetX + mOffsetMtrX) + ","
+                            + (int)(mTouchY - mThumbOffsetY + mOffsetMtrY) + ")");
+        }
+    }
+
+    public void setMatrix(float dsdx, float dtdx, float dsdy, float dtdy) {
+        if(mSurfaceControl != null){
+            mSurfaceControl.setMatrix(dsdx, dtdx, dsdy, dtdy);
+        }
+    }
+
+    public void scaleSurface(float xScale, float yScale, float aXPer, float aYPer) {
+        scaleSurface(xScale, yScale, aXPer, aYPer, false);
+    }
+
+    public void scaleSurface(float xScale, float yScale, float aXPer, float aYPer, boolean skew) {
+        final float[] mTmpFloats = new float[9];
+        Matrix matrix = new Matrix();
+        if(skew){
+            matrix.postRotate(45.f);
+            matrix.postSkew(1 - xScale, 1 - yScale, aXPer*mWidth, aYPer*mHeight);
+            matrix.postRotate(-45.f);
+            matrix.postScale(xScale * 0.7f, yScale, aXPer*mWidth, aYPer*mHeight*(1+yScale));
+        }else {
+            matrix.postScale(xScale, yScale, aXPer*mWidth, aYPer*mHeight);
+        }
+        matrix.getValues(mTmpFloats);
+        mOffsetMtrX = mTmpFloats[Matrix.MTRANS_X];
+        mOffsetMtrY = mTmpFloats[Matrix.MTRANS_Y];
+        setPosition(mTouchX, mTouchY);
+        setMatrix(mTmpFloats[Matrix.MSCALE_X], mTmpFloats[Matrix.MSKEW_Y],
+                    mTmpFloats[Matrix.MSKEW_X], mTmpFloats[Matrix.MSCALE_Y]);
+    }
+
+    public void startOnDragAnim() {
+        UiThread.getHandler().removeCallbacks(mOnDragAnimRun);
+        UiThread.getHandler().postDelayed(mOnDragAnimRun, mShowAnimDelay);
+    }
+
+    private Runnable mOnDismissAnimAlphaRun = new Runnable() {
+        @Override
+        public void run() {
+            final ValueAnimator animator = ValueAnimator.ofFloat(1, 0);
+            final ValueAnimator.AnimatorListener animEventListener = new ValueAnimator.AnimatorListener() {
+                @Override
+                public void onAnimationStart(Animator animation) {}
+
+                @Override
+                public void onAnimationRepeat(Animator animation) {}
+
+                @Override
+                public void onAnimationEnd(Animator animation) {
+                    if(animator != null){
+                        animator.removeAllUpdateListeners();
+                        animator.removeAllListeners();
+                    }
+                    handleReset();
+                }
+                @Override
+                public void onAnimationCancel(Animator animation){
+                    if(animator != null){
+                        animator.removeAllUpdateListeners();
+                        animator.removeAllListeners();
+                    }
+                    handleReset();
+                }
+            };
+            final ValueAnimator.AnimatorUpdateListener updateListener = new ValueAnimator.AnimatorUpdateListener() {
+                @Override
+                public void onAnimationUpdate(ValueAnimator animation) {
+                    float currentAnimVal = (Float) animation.getAnimatedValue();
+                    SurfaceControl.openTransaction();
+                    try {
+                        if(mSurfaceControl != null){
+                            mSurfaceControl.setAlpha(currentAnimVal);
+                        }
+                    } finally {
+                        SurfaceControl.closeTransaction();
+                    }
+                }
+            };
+            animator.setDuration(200);
+            animator.setInterpolator(new DecelerateInterpolator());
+            animator.addUpdateListener(updateListener);
+            animator.addListener(animEventListener);
+            animator.start();
+        }
+    };
+
+    private Runnable mOnDismissAnimRun = new Runnable() {
+        @Override
+        public void run() {
+            final ValueAnimator animator = ValueAnimator.ofFloat(1, 0);
+            final ValueAnimator.AnimatorListener animEventListener = new ValueAnimator.AnimatorListener() {
+                @Override
+                public void onAnimationStart(Animator animation) {}
+
+                @Override
+                public void onAnimationRepeat(Animator animation) {}
+
+                @Override
+                public void onAnimationEnd(Animator animation) {
+                    if(animator != null){
+                        animator.removeAllUpdateListeners();
+                        animator.removeAllListeners();
+                    }
+                    handleReset();
+                }
+                @Override
+                public void onAnimationCancel(Animator animation){
+                    if(animator != null){
+                        animator.removeAllUpdateListeners();
+                        animator.removeAllListeners();
+                    }
+                    handleReset();
+                }
+            };
+            final ValueAnimator.AnimatorUpdateListener updateListener = new ValueAnimator.AnimatorUpdateListener() {
+                @Override
+                public void onAnimationUpdate(ValueAnimator animation) {
+                    float currentAnimVal = (Float) animation.getAnimatedValue();
+                    float alpha = (currentAnimVal*(1-MIN_SCALE)) + MIN_SCALE;
+                    float scaleX = currentAnimVal;
+                    float scaleY = currentAnimVal;
+                    float scaleApX = (mThumbOffsetX + mDelX) / mWidth;
+                    float scaleApY = (mThumbOffsetY + mDelY) / mHeight;
+                    SurfaceControl.openTransaction();
+                    try {
+                        scaleSurface(scaleX, scaleY, scaleApX, scaleApY, true);
+                        if(mSurfaceControl != null){
+                            mSurfaceControl.setAlpha(alpha);
+                        }
+                    } finally {
+                        SurfaceControl.closeTransaction();
+                    }
+                }
+            };
+            animator.setDuration(200);
+            animator.setInterpolator(new DecelerateInterpolator());
+            animator.addUpdateListener(updateListener);
+            animator.addListener(animEventListener);
+            animator.start();
+        }
+    };
+
+    private Runnable mOnDragAnimRun = new Runnable() {
+        @Override
+        public void run() {
+            final ValueAnimator animator = ValueAnimator.ofFloat(MAX_SCALE, 1);
+            final ValueAnimator.AnimatorListener animEventListener = new ValueAnimator.AnimatorListener() {
+                @Override
+                public void onAnimationStart(Animator animation) {}
+
+                @Override
+                public void onAnimationRepeat(Animator animation) {}
+
+                @Override
+                public void onAnimationEnd(Animator animation) {
+                    if(animator != null){
+                        animator.removeAllUpdateListeners();
+                        animator.removeAllListeners();
+                    }
+                }
+                @Override
+                public void onAnimationCancel(Animator animation){
+                    if(animator != null){
+                        animator.removeAllUpdateListeners();
+                        animator.removeAllListeners();
+                    }
+                }
+            };
+            final ValueAnimator.AnimatorUpdateListener updateListener = new ValueAnimator.AnimatorUpdateListener() {
+                @Override
+                public void onAnimationUpdate(ValueAnimator animation) {
+                    float currentAnimVal = (Float) animation.getAnimatedValue();
+                    float scaleX = currentAnimVal; // ((currentAnimVal - 1) * 0.7f) + 1;
+                    float scaleY = currentAnimVal;
+                    SurfaceControl.openTransaction();
+                    try {
+                        scaleSurface(scaleX, scaleY, SCALE_AX_PER, SCALE_AY_PER);
+                    } finally {
+                        SurfaceControl.closeTransaction();
+                    }
+                }
+            };
+            SurfaceControl.openTransaction();
+            try {
+                if (mSurfaceControl != null) {
+                    mSurfaceControl.show();
+                }
+            } finally {
+                SurfaceControl.closeTransaction();
+            }
+            animator.setDuration(200);
+            animator.setInterpolator(new OvershootInterpolator());
+            animator.addUpdateListener(updateListener);
+            animator.addListener(animEventListener);
+            animator.start();
+        }
+    };
+
+    private boolean inWindowBorder(float x, float y) {
+        Point pt = new Point();
+        mService.getDefaultDisplayContentLocked().getDisplay().getSize(pt);
+        int width = pt.x;
+        int height = pt.y;
+        float delWidth = width / 100.0f;
+        float delHeight = height / 100.0f;
+        if (x < delWidth || x > width - delWidth || y < delHeight
+                || y > height - delHeight) {
+            return true;
+        }
+        return false;
     }
 }

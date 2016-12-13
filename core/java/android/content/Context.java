@@ -3375,6 +3375,16 @@ public abstract class Context {
     public static final String RADIO_SERVICE = "radio";
 
     /**
+     * Use with {@link #getSystemService} to retrieve a
+     * {@link android.view.onestep.OneStepManager} for accessing the  onestep service.
+     *
+     * @see #getSystemService
+     * @author smartisan
+     * @hide
+     */
+    public static final String ONE_STEP_SERVICE = "onestep";
+    
+    /**
      * Determine whether the given permission is allowed for a particular
      * process and user ID running in the system.
      *
