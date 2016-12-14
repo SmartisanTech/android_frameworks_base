@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 
 <resources>
+    <dimen name="drag_text_popup_vertival_offset">26dp</dimen>
+    <dimen name="drag_touch_point_offset">40dp</dimen>
+    <dimen name="drag_normal_arrow_point_offset">26dp</dimen>
+    <dimen name="drag_scale_margin">12dp</dimen>
     <dimen name="sidebar_width">48dp</dimen>
     <dimen name="drag_image_size">50dp</dimen>
 

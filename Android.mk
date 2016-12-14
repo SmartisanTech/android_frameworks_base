@@ -25,6 +25,7 @@ LOCAL_PATH := $(call my-dir)
 # R.java file as a prerequisite.
 # TODO: find a more appropriate way to do this.
 framework_res_source_path := APPS/framework-res_intermediates/src
+framework_smartisanos_res_source_path := APPS/framework-smartisanos-res_intermediates/src
 
 # Build the master framework library.
 # The framework contains too many method references (>64K) for poor old DEX.
@@ -424,7 +425,8 @@ LOCAL_AIDL_INCLUDES += $(FRAMEWORKS_BASE_JAVA_SRC_DIRS)
 LOCAL_INTERMEDIATE_SOURCES := \
 			$(framework_res_source_path)/android/R.java \
 			$(framework_res_source_path)/android/Manifest.java \
-			$(framework_res_source_path)/com/android/internal/R.java
+			$(framework_res_source_path)/com/android/internal/R.java \
+                        $(framework_smartisanos_res_source_path)/com/smartisanos/internal/R.java
 
 LOCAL_NO_STANDARD_LIBRARIES := true
 LOCAL_JAVA_LIBRARIES := core-libart conscrypt okhttp core-junit bouncycastle ext
@@ -443,8 +445,10 @@ framework_module := $(LOCAL_INSTALLED_MODULE)
 # the source for this library.
 framework_res_R_stamp := \
 	$(call intermediates-dir-for,APPS,framework-res,,COMMON)/src/R.stamp
-$(full_classes_compiled_jar): $(framework_res_R_stamp)
-$(built_dex_intermediate): $(framework_res_R_stamp)
+framework_smartisanos_res_R_stamp := \
+        $(call intermediates-dir-for,APPS,framework-smartisanos-res,,COMMON)/src/R.stamp
+$(full_classes_compiled_jar): $(framework_res_R_stamp) $(framework_smartisanos_res_R_stamp)
+$(built_dex_intermediate): $(framework_res_R_stamp) $(framework_smartisanos_res_R_stamp)
 
 $(framework_module): | $(dir $(framework_module))framework-res.apk
 

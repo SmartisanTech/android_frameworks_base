@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="82dp"
+    android:gravity="center"
+    android:scaleX="1.16"
+    android:scaleY="1.16"
+    android:background="@drawable/smartisan_drag_text_popup_bg">
+
+    <TextView
+        android:id="@+id/drag_text_id"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:paddingTop="0px"
+        android:paddingBottom="0px"
+        android:gravity="center"
+        android:maxWidth="97dp"
+        android:minWidth="41dp"
+        android:singleLine="true"
+        android:ellipsize="end"
+        android:fitsSystemWindows="false"
+        android:textColor="@color/white"
+        android:textSize="13.5sp" />
+
+</LinearLayout>

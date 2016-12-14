@@ -2136,9 +2136,10 @@ public class Editor {
         return new DragShadowBuilder(shadowView);
     }
 
-    private static class DragLocalState {
+    static class DragLocalState {
         public TextView sourceTextView;
         public int start, end;
+        public boolean highlight = false;
 
         public DragLocalState(TextView sourceTextView, int start, int end) {
             this.sourceTextView = sourceTextView;
@@ -2183,23 +2184,29 @@ public class Editor {
         if (dragDropIntoItself) {
             int dragSourceStart = dragLocalState.start;
             int dragSourceEnd = dragLocalState.end;
+            // Inserting text before selection has shifted positions
+            final int shift = mTextView.getText().length() - originalLength;
             if (max <= dragSourceStart) {
-                // Inserting text before selection has shifted positions
-                final int shift = mTextView.getText().length() - originalLength;
                 dragSourceStart += shift;
                 dragSourceEnd += shift;
+            } else {
+                min -= shift;
             }
 
             // Delete original selection
             mTextView.deleteText_internal(dragSourceStart, dragSourceEnd);
 
-            // Make sure we do not leave two adjacent spaces.
-            final int prevCharIdx = Math.max(0,  dragSourceStart - 1);
-            final int nextCharIdx = Math.min(mTextView.getText().length(), dragSourceStart + 1);
-            if (nextCharIdx > prevCharIdx + 1) {
-                CharSequence t = mTextView.getTransformedText(prevCharIdx, nextCharIdx);
-                if (Character.isSpaceChar(t.charAt(0)) && Character.isSpaceChar(t.charAt(1))) {
-                    mTextView.deleteText_internal(prevCharIdx, prevCharIdx + 1);
+            if (dragLocalState.highlight) {
+                mTextView.setCursorPosition_internal(min, min + content.length());
+            } else {
+                // Make sure we do not leave two adjacent spaces.
+                final int prevCharIdx = Math.max(0, dragSourceStart - 1);
+                final int nextCharIdx = Math.min(mTextView.getText().length(), dragSourceStart + 1);
+                if (nextCharIdx > prevCharIdx + 1) {
+                    CharSequence t = mTextView.getTransformedText(prevCharIdx, nextCharIdx);
+                    if (Character.isSpaceChar(t.charAt(0)) && Character.isSpaceChar(t.charAt(1))) {
+                        mTextView.deleteText_internal(prevCharIdx, prevCharIdx + 1);
+                    }
                 }
             }
         }

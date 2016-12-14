@@ -1,4 +1,19 @@
-
+/**
+ * Copyright (c) 2016, The Smartisan Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+ 
 package com.android.server.onestep;
 
 import android.content.ComponentName;
@@ -51,6 +66,7 @@ public class OneStepManagerService extends IOneStepManager.Stub {
         mThumbModeHelper.setThumbEventsListener(new OnThumbEventsCallbacks() {
             @Override
             public void onEnterSidebarMode(final int state) {
+                Slog.d(TAG, "onEnterSidebarMode" + state);
                 if ((state & ViewRootImpl.BIT_WINDOW_IN_THUMB_MODE_TYPE_L_CORNER_SIDEBAR) != 0) {
                     mSideBarMode = OneStepManager.BIT_SIDEBAR_IN_RIGHT_TOP_MODE;
                 } else if ((state & ViewRootImpl.BIT_WINDOW_IN_THUMB_MODE_TYPE_R_CORNER_SIDEBAR) != 0) {
@@ -65,6 +81,7 @@ public class OneStepManagerService extends IOneStepManager.Stub {
 
             @Override
             public void onExitSidebarMode() {
+                Slog.d(TAG, "onExitSidebarMode" + mSideBarMode);
                 mSideBarMode = OneStepManager.BIT_SIDEBAR_IN_NONE_MODE;
                 if (mStateCallbacks != null) {
                     mStateCallbacks.notifyExitState();
@@ -98,6 +115,7 @@ public class OneStepManagerService extends IOneStepManager.Stub {
 
     @Override
     public boolean isInOneStepMode() {
+        Slog.w(TAG, "isInOneStepMode: " + mSideBarMode);
         return mSideBarMode != OneStepManager.BIT_SIDEBAR_IN_NONE_MODE;
     }
 
