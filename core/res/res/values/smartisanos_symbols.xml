@@ -12,6 +12,12 @@
   <java-symbol type="dimen" name="drag_touch_point_offset" />
   <java-symbol type="dimen" name="drag_normal_arrow_point_offset" />
   <java-symbol type="dimen" name="drag_scale_margin" />
+
+  <java-symbol type="dimen" name="sidebar_start_threshold_x_a" />
+  <java-symbol type="dimen" name="sidebar_start_threshold_y_a" />
+  <java-symbol type="dimen" name="sidebar_start_threshold_x_b" />
+  <java-symbol type="dimen" name="sidebar_start_threshold_y_b" />
+
   <!-- TextView/Editor Symbol -->
 
   <java-symbol type="drawable" name="sidebar_background" />

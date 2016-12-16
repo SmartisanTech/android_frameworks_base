@@ -46,6 +46,7 @@ public abstract class PanelBar extends FrameLayout {
     private boolean mTracking;
 
     float mPanelExpandedFractionSum;
+    private int mOneStepXStartThreshold;
 
     public void go(int state) {
         if (DEBUG) LOG("go state: %d -> %d", mState, state);
@@ -54,6 +55,8 @@ public abstract class PanelBar extends FrameLayout {
 
     public PanelBar(Context context, AttributeSet attrs) {
         super(context, attrs);
+        mOneStepXStartThreshold = context.getResources()
+                .getDimensionPixelSize(com.android.internal.R.dimen.sidebar_start_threshold_x_a);
     }
 
     @Override
@@ -119,6 +122,11 @@ public abstract class PanelBar extends FrameLayout {
 
         // figure out which panel needs to be talked to here
         if (event.getAction() == MotionEvent.ACTION_DOWN) {
+            //SmartisanOs ext. ignore for onestep.
+            if (event.getRawX() <= mOneStepXStartThreshold || event.getRawX() >=getMeasuredWidth() - mOneStepXStartThreshold) {
+                mTouchingPanel = null;
+                return true;
+            }
             final PanelView panel = selectPanelForTouch(event);
             if (panel == null) {
                 // panel is not there, so we'll eat the gesture

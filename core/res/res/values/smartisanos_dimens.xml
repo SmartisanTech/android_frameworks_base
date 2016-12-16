@@ -7,5 +7,8 @@
     <dimen name="drag_scale_margin">12dp</dimen>
     <dimen name="sidebar_width">48dp</dimen>
     <dimen name="drag_image_size">50dp</dimen>
-
+    <dimen name="sidebar_start_threshold_x_a">27dp</dimen>
+    <dimen name="sidebar_start_threshold_y_a">24dp</dimen>
+    <dimen name="sidebar_start_threshold_x_b">17dp</dimen>
+    <dimen name="sidebar_start_threshold_y_b">50dp</dimen>
 </resources>
