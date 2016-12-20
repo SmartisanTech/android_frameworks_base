@@ -38,27 +38,34 @@ import android.view.View;
 import com.smartisanos.internal.R;
 
 import java.io.File;
-/** {@hide} */
+
+/**
+ * A class containing utility methods related to one step mode. 
+ * Let  the apps can drag something when in one step mode. 
+ *  
+ *  {@hide} 
+ *  */
 public class OneStepDragUtils {
 
-    private static final class DragSource {
-        public static final String APP = "0";
-        public static final String IMAGE = "1";
-        public static final String FILE = "2";
-        public static final String CLIPBOARD = "3";
-    }
-
-    private static final class DragContent {
-        public static final String IMAGE = "0";
-        public static final String FILE = "1";
-        public static final String TEXT = "2";
-        public static final String LINK = "3";
-    }
-
+    /**
+     * Long Press and Drag to share {@link java.lang.CharSequence} content text.
+     *
+     * @param view The View object which you long press and drag.
+     * @param text The content which you want to share. Can be {@link java.lang.String}
+     * {@link android.text.SpannableString} or any other implementation class object.
+     */
   public static void dragText(View view, Context context, CharSequence text) {
         dragText(view, context, text, null);
     }
 
+  /**
+   * Long Press and Drag to share {@link java.lang.CharSequence} content text.
+   *
+   * @param view The View object which you long press and drag.
+   * @param text The content which you want to share. Can be {@link java.lang.String}
+   * {@link android.text.SpannableString} or any other implementation class object.
+   * @param myLocalState The Object want to pass to drag event.{@link android.view.DragEvent#getLocalState()}
+   */
     public static void dragText(View view, Context context, CharSequence text, Object myLocalState) {
         ClipData cd = ClipData.newPlainText(null, text);
         int arrowOffset = context.getResources().getDimensionPixelSize(R.dimen.drag_normal_arrow_point_offset);
@@ -66,10 +73,38 @@ public class OneStepDragUtils {
         view.startDrag(cd, new TextDragShadowBuilder(context, text.toString()), myLocalState, View.DRAG_FLAG_GLOBAL, 0, 0 - (arrowOffset + touchPointOffset));
     }
 
+    /**
+     * Long Press and Drag to share {@link java.lang.CharSequence} content. You can set
+     * the style of popup bubble,
+     *
+     * @param view The View object which you long press and drag.
+     * @param text The content which you want to share. Can be {@link java.lang.String}
+     * {@link android.text.SpannableString} or any other implementation class object.
+     * @param content The bubble content bitmap display. At the Middle of Z-order.
+     * Suggest Size:66dp x 45dp
+     * @param avatar The bubble avatar bitmap on the left(has a padding). At the Top of Z-order
+     * Suggest Size: 26dp x 26dp
+     *
+     */
     public static void dragText(View view, Context context, CharSequence text, Bitmap content, Bitmap avatar) {
         dragText(view, context, text, null, content, avatar);
     }
 
+    /**
+     * Long Press and Drag to share {@link java.lang.CharSequence} content. You can set
+     * the style of popup bubble,
+     *
+     * @param view The View object which you long press and drag.
+     * @param text The content which you want to share. Can be {@link java.lang.String}
+     * {@link android.text.SpannableString} or any other implementation class object.
+     * @param background The bubble background bitmap. At the Bottom of Z-order.
+     * Suggest Size: 96dp x 87dp
+     * @param content The bubble content bitmap display. At the Middle of Z-order.
+     * Suggest Size:66dp x 45dp
+     * @param avatar The bubble avatar bitmap on the left(has a padding). At the Top of Z-order
+     * Suggest Size: 26dp x 26dp
+     *
+     */
     public static void dragText(View view, Context context, CharSequence text, Bitmap background, Bitmap content, Bitmap avatar) {
         if (content == null && avatar == null) {
             dragText(view, context, text);
@@ -81,6 +116,13 @@ public class OneStepDragUtils {
         view.startDrag(cd, new CardDragShadowBuilder(context, background, content, avatar), null, View.DRAG_FLAG_GLOBAL, 0, 0 - (arrowOffset + touchPointOffset));
     }
 
+    /**
+     * Long Press and Drag to share link. This Method will display a link icon when drag.
+     *
+     * @param view The View object which you long press and drag.
+     * @param link The content which you want to share. Can be {@link java.lang.String}
+     * {@link android.text.SpannableString} or any other implementation class object.
+     */
     public static void dragLink(View view, Context context, CharSequence link) {
         ClipData cd = ClipData.newPlainText(null, link);
         int arrowOffset = context.getResources().getDimensionPixelSize(R.dimen.drag_normal_arrow_point_offset);
@@ -88,10 +130,34 @@ public class OneStepDragUtils {
         view.startDrag(cd, new LinkDragShadowBuilder(context, link.toString()), null, View.DRAG_FLAG_GLOBAL, 0, 0 - (arrowOffset + touchPointOffset));
     }
 
+    /**
+     * Long Press and Drag to share link. This Method will display a link icon when drag.
+     *
+     * @param view The View object which you long press and drag.
+     * @param link The content which you want to share. Can be {@link java.lang.String}
+     * {@link android.text.SpannableString} or any other implementation class object.
+     * @param content The bubble content bitmap display. At the Middle of Z-order.
+     * Suggest Size:66dp x 45dp
+     * @param avatar The bubble avatar bitmap on the left(has a padding). At the Top of Z-order
+     * Suggest Size: 26dp x 26dp
+     */
     public static void dragLink(View view, Context context, CharSequence link, Bitmap content, Bitmap avatar) {
         dragLink(view, context, link, null, content, avatar);
     }
 
+    /**
+     * Long Press and Drag to share link. This Method will display a link icon when drag.
+     *
+     * @param view The View object which you long press and drag.
+     * @param link The content which you want to share. Can be {@link java.lang.String}
+     * {@link android.text.SpannableString} or any other implementation class object.
+     * @param background The bubble background bitmap. At the Bottom of Z-order.
+     * Suggest Size: 96dp x 87dp
+     * @param content The bubble content bitmap display. At the Middle of Z-order.
+     * Suggest Size:66dp x 45dp
+     * @param avatar The bubble avatar bitmap on the left(has a padding). At the Top of Z-order
+     * Suggest Size: 26dp x 26dp
+     */
     public static void dragLink(View view, Context context, CharSequence link, Bitmap background, Bitmap content, Bitmap avatar) {
         if (content == null && avatar == null) {
             dragLink(view, context, link);
@@ -103,14 +169,49 @@ public class OneStepDragUtils {
         view.startDrag(cd, new CardDragShadowBuilder(context, background, content, avatar), null, View.DRAG_FLAG_GLOBAL, 0, 0 - (arrowOffset + touchPointOffset));
     }
 
+    /**
+     * Long Press and Drag to share a File. We will add file icon for the drag bubble
+     * by the file extension and mimetype.
+     *
+     * @param view The View object which you long press and drag.
+     * @param file The File you want to share,
+     * @param mimeType The mimeType of your file,
+     */
     public static void dragFile(View view, Context context, File file, String mimeType) {
         dragFile(view, context, file, mimeType, file.getName());
     }
 
+    /**
+     * Long Press and Drag to share a File. We will add file icon for the drag bubble
+     * by the file extension and mimetype.
+     *
+     * @param view The View object which you long press and drag.
+     * @param file The File you want to share,
+     * @param mimeType The mimeType of your file,
+     * @param content The bubble content bitmap display. At the Middle of Z-order.
+     * Suggest Size:66dp x 45dp
+     * @param avatar The bubble avatar bitmap on the left(has a padding). At the Top of Z-order
+     * Suggest Size: 26dp x 26dp
+     */
     public static void dragFile(View view, Context context, File file, String mimeType, Bitmap content, Bitmap avatar) {
         dragFile(view, context, file, mimeType, null, content, avatar);
     }
 
+    /**
+     * Long Press and Drag to share a File. We will add file icon for the drag bubble
+     * by the file extension and mimetype.
+     * For example: Smartisan FileManager App long press and share files.
+     *
+     * @param view The View object which you long press and drag.
+     * @param file The File you want to share,
+     * @param mimeType The mimeType of your file,
+     * @param background The bubble background bitmap. At the Bottom of Z-order.
+     * Suggest Size: 96dp x 87dp
+     * @param content The bubble content bitmap display. At the Middle of Z-order.
+     * Suggest Size:66dp x 45dp
+     * @param avatar The bubble avatar bitmap on the left(has a padding). At the Top of Z-order
+     * Suggest Size: 26dp x 26dp
+     */
     public static void dragFile(View view, Context context, File file, String mimeType, Bitmap background, Bitmap content, Bitmap avatar) {
         if("text/plain".equals(mimeType)){
             mimeType = "application/*";
@@ -125,6 +226,16 @@ public class OneStepDragUtils {
         view.startDrag(cd, new CardDragShadowBuilder(context, background, content, avatar), null, View.DRAG_FLAG_GLOBAL, 0, 0 - (arrowOffset + touchPointOffset));
     }
 
+    /**
+     * Long Press and Drag to share a File. We will add file icon for the drag bubble
+     * by the file extension and mimetype.
+     * For example: Smartisan FileManager App long press and share files.
+     *
+     * @param view The View object which you long press and drag.
+     * @param file The File you want to share,
+     * @param mimeType The mimeType of your file,
+     * @param displayname The drag bubble display text.
+     */
     public static void dragFile(View view, Context context, File file, String mimeType, String displayname){
         if("text/plain".equals(mimeType)){
             mimeType = "application/*";
@@ -144,10 +255,25 @@ public class OneStepDragUtils {
         view.startDrag(cd, new FileDragShadowBuilder(context, displayname, fileIcon), null, View.DRAG_FLAG_GLOBAL, 0, 0 - (arrowOffset + touchPointOffset));
     }
 
+    /**
+     * Long Press and Drag to share a image.
+     *
+     * @param view The View object which you long press and drag.
+     * @param file The image file object.
+     * @param mimeType The mimeType of image.
+     */
     public static void dragImage(View view, Context context, File file, String mimeType) {
         dragImage(view, context, null, file, mimeType);
     }
 
+    /**
+     * Long Press and Drag to share a image. you can set the bitmap when drag.
+     *
+     * @param view The View object which you long press and drag.
+     * @param content The drag bubble display bitmap.
+     * @param file The image file object.
+     * @param mimeType The mimeType of image.
+     */
     public static void dragImage(View view, Context context, Bitmap content, File file, String mimeType) {
         ClipData cd = new ClipData(null, new String[]{mimeType}, new ClipData.Item(Uri.fromFile(file)));
         int arrowOffset = context.getResources().getDimensionPixelSize(R.dimen.drag_image_arrow_point_offset);
@@ -161,14 +287,38 @@ public class OneStepDragUtils {
         view.startDrag(cd, new ImageDragShadowBuilder(context, content), null, View.DRAG_FLAG_GLOBAL, 0, 0 - (arrowOffset + touchPointOffset));
     }
 
+    /**
+     * Long Press and Drag to share multi images.
+     *
+     * @param view The View object which you long press and drag.
+     * @param files The array of file you want to share.
+     * @param mimeTypes The array of appropriate mimetype.
+     */
     public static void dragMultipleImage(View view, Context context, File[] files, String[] mimeTypes) {
         dragMultipleImage(view, context, 0, files, mimeTypes);
     }
 
+    /**
+     * Long Press and Drag to share multi images.
+     *
+     * @param view The View object which you long press and drag.
+     * @param index The image index want to display
+     * @param files The array of file you want to share.
+     * @param mimeTypes The array of appropriate mimetype.
+     */
     public static void dragMultipleImage(View view, Context context, int index, File[] files, String[] mimeTypes) {
         dragMultipleImage(view, context, index, files, mimeTypes, 0);
     }
 
+    /**
+     * Long Press and Drag to share multi images.
+     *
+     * @param view The View object which you long press and drag.
+     * @param index The image index want to display
+     * @param files The array of file you want to share.
+     * @param mimeTypes The array of appropriate mimetype.
+     * @param showAnimDelay delay show animation.
+     */
     public static void dragMultipleImage(View view, Context context, int index, File[] files, String[] mimeTypes, int showAnimDelay) {
         if (files.length <= 0) {
             return;

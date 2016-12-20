@@ -38,30 +38,59 @@ interface IOneStepManager {
      */
     void bindOneStepUI(IOneStep oneStep);
 
-    // Need the OneStep_SERVICE permission
+    /**
+     * Reset the window to normal
+     * Can only be called with the ONE_STEP_SERVICE permission
+     */
     void resetWindow();
 
-    // NOT need the OneStep_SERVICE permission
+    /**
+     * Whether in one step mode or not.
+     */
     boolean isInOneStepMode();
 
-    // NOT need the OneStep_SERVICE permission
+    /**
+     * Get One Step mode state.
+     */
     int getOneStepModeState();
 
-    // NOT need the OneStep_SERVICE permission
+    /**
+     * Whether the focus one one step window or not.
+     */
     boolean isFocusedOnOneStep();
 
-    // Need the OneStep_SERVICE permission
-    void requestEnterLastMode();
+    /**
+     * Request enter last one step mode.
+     * Can only be called with the ONE_STEP_SERVICE permission
+     */
+      void requestEnterLastMode();
 
+    /**
+     * Request exit one step mode.
+     * Can only be called with the ONE_STEP_SERVICE permission
+     */
+      void requestExitOneStepMode();
+
+    /**
+     * Request enter one step mode.
+     * Can only be called with the ONE_STEP_SERVICE permission
+     */
+     void requestEnterOneStepMode(int mode);
+
+    /**
+     * Set one step UI enabled or not.
+     * Can only be called with the ONE_STEP permission
+     */
+    void setEnabled(boolean enabled);
+
+   /**
+     * Resume one step UI 
+     * Can only be called with the ONE_STEP permission
+     */
     void resumeOneStep();
 
+   /**
+     * Drag text, image to one. For examle: smartisan notes.
+     */
     void updateOngoing(in ComponentName name, int token, int pendingNumbers, CharSequence title, int pid);
-
-    // Need the OneStep_SERVICE permission
-    void requestExitOneStepMode();
-
-    // Need the OneStep_SERVICE permission
-    void requestEnterOneStepMode(int mode);
-
-    void setEnabled(boolean enabled);
 }

@@ -31,8 +31,8 @@ import android.widget.OverScroller;
  * @hide
  */
 public class SystemGesturesPointerEventListener implements PointerEventListener {
-    private static final String TAG = "533";
-    private static final boolean DEBUG = true;
+    private static final String TAG = "SystemGestures";
+    private static final boolean DEBUG = false;
     private static final long SWIPE_TIMEOUT_MS = 500;
     private static final int MAX_TRACKED_POINTERS = 32;  // max per input system
     private static final int UNTRACKED_POINTER = -1;
@@ -195,22 +195,15 @@ public class SystemGesturesPointerEventListener implements PointerEventListener 
                 + " moved (" + fromX + "->" + x + "," + fromY + "->" + y + ") in " + elapsed);
         int topFromDy = mSwipeStartThreshold;
         int topDy = 0;
-        int topFromDx = 80;
         if (mInSidebarMode) {
             topFromDy += mThumbOffsetScaleVertiS;
             topDy = mThumbOffsetScaleVertiS;
-            topFromDx = 0;
         }
         if (fromY <= topFromDy
                 && y > topDy
                 && y - fromY > mSwipeDistanceThreshold
-                && elapsed < SWIPE_TIMEOUT_MS ) {
-            if (fromX >= topFromDx
-                    && fromX <= screenWidth - topFromDx) {
-                return SWIPE_FROM_TOP;
-            } else {
-                return SWIPE_NONE;
-            }
+                && elapsed < SWIPE_TIMEOUT_MS) {
+            return SWIPE_FROM_TOP;
         }
         if (fromY >= screenHeight - mSwipeStartThreshold
                 && y < fromY - mSwipeDistanceThreshold

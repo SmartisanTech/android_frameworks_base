@@ -1820,6 +1820,12 @@
     <permission android:name="android.permission.STATUS_BAR_SERVICE"
         android:protectionLevel="signature" />
 
+    <!-- Allows an application to open, close, or disable the status bar. 
+     Currently used only by system apps.
+    @hide -->
+    <permission android:name="android.permission.ONE_STEP"
+        android:protectionLevel="signature|system" />
+
     <!-- Allows an application to be the side bar.Not for use by third party apps. 
     @hide -->
     <permission android:name="android.permission.ONE_STEP_SERVICE"
