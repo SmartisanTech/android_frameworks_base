@@ -6201,7 +6201,7 @@ public class WindowManagerService extends IWindowManager.Stub
         Bitmap bm = null;
 
         int maxLayer = 0;
-        int statusBarHeight = 0;
+        // int statusBarHeight = 0;
         final Rect frame = new Rect();
         final Rect stackBounds = new Rect();
 
@@ -6338,10 +6338,10 @@ public class WindowManagerService extends IWindowManager.Stub
                     continue;
                 }
 
-                if (!isFullScreen) {
-                    statusBarHeight =
-                            mContext.getResources().getDimensionPixelSize(com.android.internal.R.dimen.status_bar_height);
-                }
+//                if (!isFullScreen) {
+//                    statusBarHeight =
+//                            mContext.getResources().getDimensionPixelSize(com.android.internal.R.dimen.status_bar_height);
+//                }
 
                 // Screenshot is ready to be taken. Everything from here below will continue
                 // through the bottom of the loop and return a value. We only stay in the loop
@@ -6374,21 +6374,21 @@ public class WindowManagerService extends IWindowManager.Stub
                     height = frame.height();
                 }
 
-                Rect crop = ThumbModeHelper.getInstance().getAppScreenRect(dw, dh, statusBarHeight);
+                // Rect crop = ThumbModeHelper.getInstance().getAppScreenRect(dw, dh, statusBarHeight);
 
 //                // Constrain frame to the screen size.
 //                frame.intersect(0, 0, dw, dh);
 
-//                // Tell surface flinger what part of the image to crop. Take the top
-//                // right part of the application, and crop the larger dimension to fit.
-//                Rect crop = new Rect(frame);
-//                if (width / (float) frame.width() < height / (float) frame.height()) {
-//                    int cropWidth = (int)((float)width / (float)height * frame.height());
-//                    crop.right = crop.left + cropWidth;
-//                } else {
-//                    int cropHeight = (int)((float)height / (float)width * frame.width());
-//                    crop.bottom = crop.top + cropHeight;
-//                }
+                // Tell surface flinger what part of the image to crop. Take the top
+                // right part of the application, and crop the larger dimension to fit.
+                Rect crop = new Rect(frame);
+                if (width / (float) frame.width() < height / (float) frame.height()) {
+                    int cropWidth = (int)((float)width / (float)height * frame.height());
+                    crop.right = crop.left + cropWidth;
+                } else {
+                    int cropHeight = (int)((float)height / (float)width * frame.width());
+                    crop.bottom = crop.top + cropHeight;
+                }
 
                 // The screenshot API does not apply the current screen rotation.
                 int rot = getDefaultDisplayContentLocked().getDisplay().getRotation();
