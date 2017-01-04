@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
- 
+
 package com.android.server.onestep;
 
 import android.content.ComponentName;
@@ -147,7 +147,7 @@ public class OneStepManagerService extends IOneStepManager.Stub {
         Slog.d(TAG, "[Uid: " + Binder.getCallingUid() + ", Pid: " + Binder.getCallingPid()
                 + "] requestExitSidebarMode");
 
-        if (isInOneStepMode()) {
+        if (!isInOneStepMode()) {
             Slog.w(TAG, "Not in sidebar mode, no need to do ExitSidebarMode");
         } else {
             mLastResetMode = mSideBarMode;
