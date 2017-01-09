@@ -18,6 +18,7 @@ package android.widget;
 
 import android.content.Context;
 import android.util.AttributeSet;
+import android.view.View;
 import android.widget.RemoteViews.RemoteView;
 
 
@@ -112,5 +113,11 @@ public class Button extends TextView {
     @Override
     public CharSequence getAccessibilityClassName() {
         return Button.class.getName();
+    }
+
+    /** @hide */
+    @Override
+    public View dispatchFindView(float x, float y, boolean findImage) {
+        return null;
     }
 }

@@ -5,4 +5,7 @@
     <string name="permgrouplab_sideBarService">Side Bar</string>
     <!-- Description of a category of application permissions, listed so the user can choose whether they want to allow the application to do this. -->
     <string name="permgroupdesc_sideBarService">Change the device side bar settings.</string>
+
+    <!-- SideBar drag text Wechat sight -->
+    <string name="sidebar_wechat_sight">Hold to Capture</string>
 </resources>

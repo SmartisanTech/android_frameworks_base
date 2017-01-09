@@ -50,6 +50,7 @@ import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
 import android.view.animation.LayoutAnimationController;
 import android.view.animation.Transformation;
+import android.webkit.WebView;
 
 import com.android.internal.R;
 import com.android.internal.util.Predicate;
@@ -7793,4 +7794,49 @@ public abstract class ViewGroup extends View implements ViewParent, ViewManager 
             getChildAt(i).encode(encoder);
         }
     }
+
+    /**
+     * @hide
+     */
+    public View dispatchFindView(float x, float y, boolean findImage) {
+        final int childrenCount = mChildrenCount;
+        if (childrenCount == 0 || getVisibility() != View.VISIBLE)
+            return null;
+
+        // Find a child that can receive the event.
+        // Scan children from front to back.
+        final ArrayList<View> preorderedList = buildOrderedChildList();
+        final boolean customOrder = preorderedList == null
+                && isChildrenDrawingOrderEnabled();
+        final View[] children = mChildren;
+        for (int i = childrenCount - 1; i >= 0; i--) {
+            final int childIndex = customOrder
+                    ? getChildDrawingOrder(childrenCount, i) : i;
+            final View child = (preorderedList == null)
+                    ? children[childIndex] : preorderedList.get(childIndex);
+            if (child.getVisibility() != View.VISIBLE) {
+                continue;
+            }
+            if (isTransformedTouchPointInView(x, y, child, null)) {
+                final float offsetX = mScrollX - child.mLeft;
+                final float offsetY = mScrollY - child.mTop;
+                float newX = x + offsetX;
+                float newY = y + offsetY;
+                View ret = child.dispatchFindView(newX, newY, findImage);
+                if (ret != null) {
+                    if (preorderedList != null) preorderedList.clear();
+                    return ret;
+                } else if (child instanceof ViewGroup) {
+                    if (child instanceof WebView
+                            || child.getClass().getName().startsWith("org.chromium.content.browser.ContentView")) {
+                        if (preorderedList != null) preorderedList.clear();
+                        return child;
+                    }
+                }
+            }
+        }
+        if (preorderedList != null) preorderedList.clear();
+        return null;
+    }
+
 }

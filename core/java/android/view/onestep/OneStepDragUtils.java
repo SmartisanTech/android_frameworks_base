@@ -48,6 +48,19 @@ import java.io.File;
 public class OneStepDragUtils {
 
     /**
+     * Indicate whether the Sidebar is showing
+     * @param context
+     * @return
+     */
+    public static boolean isSidebarShowing(Context context){
+        OneStepManager oneStepManager = (OneStepManager) context.getSystemService("onestep");
+        if (oneStepManager != null) {
+            return oneStepManager.isInOneStepMode();
+        }
+        return false;
+    }
+
+    /**
      * Long Press and Drag to share {@link java.lang.CharSequence} content text.
      *
      * @param view The View object which you long press and drag.

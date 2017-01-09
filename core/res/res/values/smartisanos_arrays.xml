@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <!-- text boom trigger area -->
+    <string-array name="text_boom_trigger_area">
+        <item>0.047</item>
+        <item>0.054</item>
+        <item>0.061</item>
+        <item>0.068</item>
+        <item>0.075</item>
+    </string-array>
+
+    <string-array name="ocr_black_list">
+        <item>com.android.settings</item>
+        <item>com.android.camera2</item>
+        <item>com.android.calendar</item>
+        <item>com.android.providers.downloads</item>
+        <item>com.android.contacts</item>
+        <item>com.smartisanos.sidebar</item>
+    </string-array>
+</resources>

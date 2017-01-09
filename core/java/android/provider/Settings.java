@@ -8096,7 +8096,39 @@ public final class Settings {
          * @hide
          */
         public static final String SIDE_BAR_MODE = "side_bar_mode";
-
+        /**
+         * @hide
+         */
+        public static final String TEXT_BOOM = "text_boom";
+        /**
+         * for detail values, to see {@link TEXT_BOOM_SEARCH_VALUE}
+         * @hide
+         */
+        public static final String TEXT_BOOM_SEARCH_METHOD = "text_boom_search_method";
+        /**
+         * @hide
+         * */
+        public static final String BOOM_TEXT_TRIGGER_AREA = "boom_text_trigger_area";
+        /**
+         *@hide
+         */
+        public static final int BOOM_TEXT_TRIGGER_AREA_SMALLEST = 0;
+        /**
+         * @hide
+         */
+        public static final int BOOM_TEXT_TRIGGER_AREA_SMALL = 1;
+        /**
+         * @hide
+         */
+        public static final int BOOM_TEXT_TRIGGER_AREA_MIDDLE = 2;
+        /**
+         * @hide
+         */
+        public static final int BOOM_TEXT_TRIGGER_AREA_LARGE = 3;
+        /**
+         * @hide
+         */
+        public static final int BOOM_TEXT_TRIGGER_AREA_LARGEST = 4;
     }
 
     /**
@@ -8486,5 +8518,22 @@ public final class Settings {
             return null;
         }
         return packages[0];
+    }
+
+    /**
+     * available value for {@link Global#TEXT_BOOM_SEARCH_METHOD}
+     *
+     * @hide
+     */
+    public static final class TEXT_BOOM_SEARCH_VALUE {
+        public static final int TYPE_BAIDU = 0x000;
+        public static final int TYPE_GOOGLE = 0x001;
+        public static final int TYPE_BING = 0x002;
+        public static final int TYPE_SHENMA = 0x003;
+        public static final int TYPE_WIKI = 0x010;
+        public static final int TYPE_YOUDAO = 0x100;
+        public static final int TYPE_KINGSOFT = 0x101;
+        public static final int TYPE_BINGDICT = 0x102;
+        public static final int TYPE_HIDICT = 0x103;
     }
 }

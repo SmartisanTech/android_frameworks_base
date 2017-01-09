@@ -1499,4 +1499,14 @@ public class ImageView extends View {
         super.encodeProperties(stream);
         stream.addProperty("layout:baseline", getBaseline());
     }
+
+    /** @hide */
+    @Override
+    public View dispatchFindView(float x, float y, boolean findImage) {
+        if (findImage && getDrawable() instanceof BitmapDrawable) {
+            return this;
+        } else {
+            return null;
+        }
+    }
 }

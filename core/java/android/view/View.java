@@ -21149,7 +21149,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
         public void run() {
             if (isPressed() && (mParent != null)
                     && mOriginalWindowAttachCount == mWindowAttachCount) {
-                if (performLongClick()) {
+                if (!getRootView().isLongPressSwipe() && performLongClick()) {
                     mHasPerformedLongPress = true;
                 }
             }
@@ -22579,4 +22579,49 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
         stream.addProperty("accessibility:labelFor", getLabelFor());
         stream.addProperty("accessibility:importantForAccessibility", getImportantForAccessibility());
     }
+
+    /** @hide */
+    public boolean isLongPressSwipe() {
+        return false;
+    }
+
+    /** @hide */
+    public View dispatchFindView(float x, float y, boolean findImage) {
+        return null;
+    }
+
+    /** @hide */
+    public void setFindText(String str) {
+        mFindText = str;
+    }
+
+    /** @hide */
+    public String getFindText() {
+        return mFindText;
+    }
+
+    /** @hide */
+    public int getFindTextIndex() {
+        return mFindTextIndex;
+    }
+
+    /** @hide */
+    public void setFindTextIndex(int index) {
+        mFindTextIndex = index;
+    }
+
+    /** @hide */
+    protected boolean isHandlingTouchEvent() {
+        return mIsHandlingTouchEvent;
+    }
+
+    /** @hide */
+    protected void setHandlingTouchEvent(boolean b) {
+        mIsHandlingTouchEvent = b;
+    }
+
+    private boolean mIsHandlingTouchEvent = false;
+    private String mFindText;
+    private int mFindTextIndex = -1;
+
 }

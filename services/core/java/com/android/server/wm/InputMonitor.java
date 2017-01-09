@@ -179,6 +179,9 @@ final class InputMonitor implements InputManagerService.WindowManagerCallbacks {
             flags |= WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL;
             child.getStackBounds(mTmpRect);
             inputWindowHandle.touchableRegion.set(mTmpRect);
+            if (child.isHiddenWindow()) {
+                inputWindowHandle.touchableRegion.set(new Rect(0, 0, 1, 1));
+            }
         } else {
             // Not modal or full screen modal
             child.getTouchableRegion(inputWindowHandle.touchableRegion);

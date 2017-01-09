@@ -1004,6 +1004,36 @@ public class TextUtils {
         return offset;
     }
 
+    /** @hide */
+    public static int getOffsetStartOf(CharSequence text, int offset) {
+        if (offset == 0 || offset == text.length())
+            return offset;
+
+        char c = text.charAt(offset);
+
+        if (c >= '\uDC00' && c <= '\uDFFF') {
+            char c1 = text.charAt(offset - 1);
+
+            if (c1 >= '\uD800' && c1 <= '\uDBFF')
+                offset -= 1;
+        }
+
+        if (text instanceof Spanned) {
+            ReplacementSpan[] spans = ((Spanned) text).getSpans(offset, offset,
+                    ReplacementSpan.class);
+
+            for (int i = 0; i < spans.length; i++) {
+                int start = ((Spanned) text).getSpanStart(spans[i]);
+                int end = ((Spanned) text).getSpanEnd(spans[i]);
+
+                if (start < offset && end > offset)
+                    offset = start;
+            }
+        }
+
+        return offset;
+    }
+
     private static void readSpan(Parcel p, Spannable sp, Object o) {
         sp.setSpan(o, p.readInt(), p.readInt(), p.readInt());
     }

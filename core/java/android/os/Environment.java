@@ -754,6 +754,11 @@ public class Environment {
         sUserRequired = userRequired;
     }
 
+    /** {@hide} */
+    public static boolean getUserRequired() {
+        return sUserRequired;
+    }
+
     private static void throwIfUserRequired() {
         if (sUserRequired) {
             Log.wtf(TAG, "Path requests must specify a user by using UserEnvironment",

@@ -9873,7 +9873,7 @@ public class WindowManagerService extends IWindowManager.Stub
         final WindowManager.LayoutParams attrs = w.mAttrs;
         if ((attrs.flags & FLAG_DIM_BEHIND) != 0
                 && w.isDisplayedLw()
-                && !w.mExiting) {
+                && !w.mExiting && !w.isHiddenWindow()) {
             final WindowStateAnimator winAnimator = w.mWinAnimator;
             final TaskStack stack = w.getStack();
             if (stack == null) {

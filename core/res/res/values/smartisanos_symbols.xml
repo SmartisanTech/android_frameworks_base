@@ -30,4 +30,13 @@
   <!-- Thumb Mode -->
   <java-symbol type="style" name="Animation.Thumbwallpaper" />
   <java-symbol type="drawable" name="shadow_thumb_mode"/>
+
+  <!-- text boom -->
+  <java-symbol type="drawable" name="smartisan_boom_loop" />
+  <java-symbol type="drawable" name="smartisan_boom_circle" />
+  <java-symbol type="array" name="text_boom_trigger_area" />
+  <java-symbol type="array" name="ocr_black_list" />
+  <!-- SideBar drag text Wechat sight -->
+  <java-symbol type="string" name="sidebar_wechat_sight" />
+
 </resources>

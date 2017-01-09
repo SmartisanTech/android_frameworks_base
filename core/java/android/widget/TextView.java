@@ -106,6 +106,7 @@ import android.text.style.UpdateAppearance;
 import android.text.util.Linkify;
 import android.util.AttributeSet;
 import android.util.Log;
+import android.util.Patterns;
 import android.util.TypedValue;
 import android.view.AccessibilityIterators.TextSegmentIterator;
 import android.view.ActionMode;
@@ -150,6 +151,7 @@ import java.io.IOException;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Locale;
+import java.util.regex.Matcher;
 
 /**
  * Displays text to the user and optionally allows them to edit it.  A TextView
@@ -622,6 +624,8 @@ public class TextView extends View implements ViewTreeObserver.OnPreDrawListener
     int mTextSelectHandleRes;
     int mTextEditSuggestionItemLayout;
 
+    private final int mMaxFindTextLength;
+
     /**
      * EditText specific data, created on demand when one of the Editor fields is used.
      * See {@link #createEditorIfNeeded()}.
@@ -683,6 +687,7 @@ public class TextView extends View implements ViewTreeObserver.OnPreDrawListener
 
         mTextPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
         mTextPaint.density = res.getDisplayMetrics().density;
+        mMaxFindTextLength = 1000;
         mTextPaint.setCompatibilityScaling(compat.applicationScale);
 
         mHighlightPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -10187,4 +10192,113 @@ public class TextView extends View implements ViewTreeObserver.OnPreDrawListener
             TextView.this.spanChange(buf, what, s, -1, e, -1);
         }
     }
+
+    private final static int EXTEND_WORD_OFFSET = 10;
+    private final static char NEW_LINE = '\n';
+
+    /** @hide */
+    @Override
+    public View dispatchFindView(float x, float y, boolean findImage) {
+        String foundText = null;
+        int offset = getOffsetForPosition(x, y);
+        final int length = mText.length();
+        if (offset == length) offset = length - 1;
+        if (offset != -1) {
+            String stringText = mText.toString();
+            int start = stringText.lastIndexOf(NEW_LINE, offset - 1);
+            int end = stringText.indexOf(NEW_LINE, offset + 1);
+            if (start == -1 && end == -1) {
+                if (mMaxFindTextLength >= length) {
+                    start = 0;
+                    end = length;
+                } else {
+                    boolean getBefore = offset >= mMaxFindTextLength / 2;
+                    boolean getAfter = length - offset >= mMaxFindTextLength / 2;
+                    if (getBefore && getAfter) {
+                        start = TextUtils.getOffsetStartOf(mText, offset - mMaxFindTextLength / 2);
+                        end = TextUtils.getOffsetStartOf(mText, offset + mMaxFindTextLength / 2);
+                    } else if (getBefore) {
+                        start = TextUtils.getOffsetStartOf(mText, length - mMaxFindTextLength);
+                        end = length;
+                    } else {
+                        start = 0;
+                        end = TextUtils.getOffsetStartOf(mText, mMaxFindTextLength);
+                    }
+                }
+            } else if (start == -1) {
+                start = TextUtils.getOffsetStartOf(mText, Math.max(0, end - mMaxFindTextLength));
+            } else if (end == -1) {
+                end = TextUtils.getOffsetStartOf(mText, Math.min(length, start + mMaxFindTextLength));
+            } else {
+                if (end - start > mMaxFindTextLength) {
+                    boolean getBefore = offset - start >= mMaxFindTextLength / 2;
+                    boolean getAfter = end - offset >= mMaxFindTextLength / 2;
+                    if (getBefore && getAfter) {
+                        start = TextUtils.getOffsetStartOf(mText, offset - mMaxFindTextLength / 2);
+                        end = TextUtils.getOffsetStartOf(mText, offset + mMaxFindTextLength / 2);
+                    } else if (getBefore) {
+                        start = TextUtils.getOffsetStartOf(mText, end - mMaxFindTextLength);
+                    } else {
+                        end = TextUtils.getOffsetStartOf(mText, start + mMaxFindTextLength);
+                    }
+                }
+            }
+            offset -= start;
+            if (Character.isLetter(mText.charAt(start))) {
+                int i, count = 0;
+                for (i = start - 1; i >= 0 && count < EXTEND_WORD_OFFSET; --i) {
+                    if (Character.isLetter(mText.charAt(i))) {
+                        ++count;
+                    } else {
+                        break;
+                    }
+                }
+                if (i < 0 || count < EXTEND_WORD_OFFSET) {
+                    start -= count;
+                    offset += count;
+                }
+            }
+            if (Character.isLetter(mText.charAt(end - 1))) {
+                int i, count = 0;
+                for (i = end; i < length && count < EXTEND_WORD_OFFSET; ++i) {
+                    if (Character.isLetter(mText.charAt(i))) {
+                        ++count;
+                    } else {
+                        break;
+                    }
+                }
+                if (i == length || count < EXTEND_WORD_OFFSET) {
+                    end += count;
+                }
+            }
+            Matcher m = Patterns.WEB_URL.matcher(mText);
+            while (m.find()) {
+                final int ps = m.start();
+                final int pe = m.end();
+                if (Linkify.sUrlMatchFilter.acceptMatch(mText, ps, pe)) {
+                    if (pe > start && ps < end) {
+                        final int newStart = Math.min(ps, start);
+                        final int newEnd = Math.max(pe, end);
+                        offset += start - newStart;
+                        start = newStart;
+                        end = newEnd;
+                    }
+                }
+            }
+            foundText = mText.subSequence(start, end).toString();
+        } else if (length > 0) {
+            foundText = mText.subSequence(0, Math.min(length, mMaxFindTextLength)).toString();
+        }
+        mTrimmedFoundText = foundText;
+        setFindTextIndex(offset);
+        setFindText(mText.toString());
+        return this;
+    }
+
+    private String mTrimmedFoundText;
+    /** @hide */
+    public String getTrimmedFoundText() {
+        return mTrimmedFoundText;
+    }
+
 }
